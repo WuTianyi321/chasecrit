@@ -38,7 +38,7 @@ def load_results_csv(path: str | Path) -> list[dict[str, Any]]:
         r = csv.DictReader(f)
         for row in r:
             out: dict[str, Any] = dict(row)
-            for k in ("w_align", "speed_ratio", "safe_frac", "captured_frac", "P_mean", "P_var", "chi"):
+            for k in ("w_align", "speed_ratio", "angle_noise", "safe_frac", "captured_frac", "P_mean", "P_var", "chi"):
                 if k in out and out[k] != "" and out[k] is not None:
                     out[k] = float(out[k])
             for k in ("seed", "alive", "safe", "captured", "steps_recorded"):
@@ -53,6 +53,30 @@ def summarize_by_group(rows: list[dict[str, Any]]) -> dict[tuple[float, float], 
     for r in rows:
         key = (float(r["speed_ratio"]), float(r["w_align"]))
         by.setdefault(key, []).append(r)
+
+    out: dict[tuple[float, float], dict[str, GroupStats]] = {}
+    for key, items in by.items():
+        out[key] = {
+            "safe_frac": _group_stats([float(x["safe_frac"]) for x in items]),
+            "captured_frac": _group_stats([float(x["captured_frac"]) for x in items]),
+            "P_mean": _group_stats([float(x["P_mean"]) for x in items]),
+            "P_var": _group_stats([float(x["P_var"]) for x in items]),
+            "chi": _group_stats([float(x.get("chi", float("nan"))) for x in items]),
+        }
+    return out
+
+
+def summarize_by_two_keys(
+    rows: list[dict[str, Any]],
+    *,
+    key_a: str,
+    key_b: str,
+) -> dict[tuple[float, float], dict[str, GroupStats]]:
+    by: dict[tuple[float, float], list[dict[str, Any]]] = {}
+    for r in rows:
+        a = float(r[key_a])
+        b = float(r[key_b])
+        by.setdefault((a, b), []).append(r)
 
     out: dict[tuple[float, float], dict[str, GroupStats]] = {}
     for key, items in by.items():

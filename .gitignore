@@ -14,3 +14,9 @@ runs/
 
 # Local assistant metadata
 .claude/
+
+# Intermediate/smoke reports
+doc/results_*_smoke/
+doc/results_20260205_phase_noise/
+doc/results_20260205_phase_noise_smoke/
+doc/results_20260205_phase_noise_wide/

@@ -19,8 +19,8 @@ from .config import (
     load_config,
 )
 from .io_utils import csv_write, ensure_dir, json_dump
-from .report import load_results_csv, summarize_by_group, write_group_summary_csv
-from .plotting import plot_heatmap, plot_metric_vs_w_align, plot_scatter
+from .report import load_results_csv, summarize_by_group, summarize_by_two_keys, write_group_summary_csv
+from .plotting import plot_heatmap, plot_metric_vs_w_align, plot_metric_vs_x, plot_scatter
 from .sim import run_once, run_summary
 
 
@@ -62,6 +62,32 @@ def _build_parser() -> argparse.ArgumentParser:
     rep.add_argument("--sweep-dir", type=str, required=True, help="Sweep directory containing results.csv")
     rep.add_argument("--out-dir", type=str, required=True, help="Output directory for report and figures")
     rep.add_argument("--title", type=str, default="Fixed pursuer-count scan", help="Report title")
+
+    phase = sub.add_parser("phase-sweep-noise", help="Sweep angle_noise in a phase-identification setting (no pursuers, no safe zones)")
+    _base_args(phase)
+    phase.add_argument("--noise", type=float, nargs="+", required=True, help="angle_noise values (radians)")
+    phase.add_argument("--seeds", type=int, nargs="+", required=True, help="Seeds")
+    phase.add_argument("--steps", type=int, default=None, help="Override number of steps")
+    phase.add_argument("--jobs", type=int, default=1, help="Parallel workers (processes)")
+    phase.add_argument("--progress-file", type=str, default="progress.jsonl", help="Progress log filename inside sweep dir")
+
+    noise_rep = sub.add_parser("report-noise", help="Create plots + markdown report for a noise sweep (speed_ratio × angle_noise)")
+    noise_rep.add_argument("--sweep-dir", type=str, required=True, help="Sweep directory containing results.csv")
+    noise_rep.add_argument("--out-dir", type=str, required=True, help="Output directory for report and figures")
+    noise_rep.add_argument("--title", type=str, default="Noise sweep report", help="Report title")
+
+    sweep_noise = sub.add_parser("sweep-noise", help="Sweep angle_noise and pursuer speed_ratio (fixed pursuer count)")
+    _base_args(sweep_noise)
+    sweep_noise.add_argument("--noise", type=float, nargs="+", required=True, help="angle_noise values (radians)")
+    sweep_noise.add_argument("--speed-ratio", type=float, nargs="+", required=True, help="v_p/v_e values")
+    sweep_noise.add_argument("--seeds", type=int, nargs="+", required=True, help="Seeds")
+    sweep_noise.add_argument("--steps", type=int, default=None, help="Override number of steps")
+    sweep_noise.add_argument("--w-align", type=float, default=None, help="Override w_align (optional)")
+    sweep_noise.add_argument("--no-save-timeseries", action="store_true", help="Do not save per-run timeseries")
+    sweep_noise.add_argument("--no-save-events", action="store_true", help="Do not save per-run events")
+    sweep_noise.add_argument("--save-runs", action="store_true", help="Save per-run directories under the sweep dir (slower)")
+    sweep_noise.add_argument("--jobs", type=int, default=1, help="Parallel workers (processes). Default 1.")
+    sweep_noise.add_argument("--progress-file", type=str, default="progress.jsonl", help="Progress log filename inside sweep dir")
 
     return p
 
@@ -115,10 +141,40 @@ def _sweep_worker(payload: tuple[dict, float, float, int]) -> dict[str, object]:
     return {"speed_ratio": float(sr), "w_align": float(w), "seed": int(seed), **summary}
 
 
+def _noise_worker(payload: tuple[dict, float, float, int]) -> dict[str, object]:
+    """
+    (base_config_dict, speed_ratio, angle_noise, seed) -> summary row
+    """
+    base_dict, sr, noise, seed = payload
+    cfg = ExperimentConfig(
+        world=WorldConfig(**base_dict["world"]),
+        evaders=EvaderConfig(**base_dict["evaders"]),
+        pursuers=PursuerConfig(**base_dict["pursuers"]),
+        safe_zones=SafeZoneConfig(**base_dict["safe_zones"]),
+        run=RunConfig(**base_dict["run"]),
+    )
+    cfg = replace(
+        cfg,
+        pursuers=replace(cfg.pursuers, speed_ratio=float(sr)),
+        evaders=replace(cfg.evaders, angle_noise=float(noise)),
+        run=replace(cfg.run, seed=int(seed), save_timeseries=False, save_events=False),
+    )
+    summary = run_summary(cfg)
+    return {"speed_ratio": float(sr), "angle_noise": float(noise), "seed": int(seed), **summary}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     argv = list(sys.argv[1:] if argv is None else argv)
-    known_cmds = {"run", "sweep-w-align", "sweep-grid", "report"}
+    known_cmds = {
+        "run",
+        "sweep-w-align",
+        "sweep-grid",
+        "sweep-noise",
+        "report",
+        "phase-sweep-noise",
+        "report-noise",
+    }
     if not argv:
         argv = ["run"]
     elif argv[0].startswith("-") or argv[0] not in known_cmds:
@@ -425,6 +481,270 @@ def main(argv: list[str] | None = None) -> int:
 
         (Path(out_dir) / "report.md").write_text("\n".join(md), encoding="utf-8")
         print(f"Wrote report to: {out_dir}")
+        return 0
+
+    if cmd == "phase-sweep-noise":
+        if args.steps is not None:
+            cfg = replace(cfg, run=replace(cfg.run, steps=int(args.steps)))
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sweep_dir = ensure_dir(Path(cfg.run.out_dir) / f"sweep_{stamp}_phase_noise")
+
+        # Phase setting overrides: no pursuers, no safe zones; isolate alignment+noise (+sep)
+        phase_cfg = replace(
+            cfg,
+            pursuers=replace(cfg.pursuers, count=0),
+            safe_zones=replace(cfg.safe_zones, active_max=0),
+            evaders=replace(cfg.evaders, w_goal=0.0, w_avoid=0.0, w_explore=0.0, w_align=1.0),
+            run=replace(cfg.run, out_dir=str(sweep_dir), save_timeseries=False, save_events=False),
+        )
+        json_dump(sweep_dir / "base_config.json", phase_cfg.to_dict())
+
+        total = len(args.noise) * len(args.seeds)
+        start_t = time.monotonic()
+        completed = 0
+        _write_progress(
+            sweep_dir=sweep_dir,
+            filename=args.progress_file,
+            record={"ts": datetime.now().isoformat(timespec="seconds"), "type": "start", "total": total, "jobs": int(args.jobs)},
+        )
+
+        results: list[dict[str, object]] = []
+        base_dict = phase_cfg.to_dict()
+
+        def on_done(last: str) -> None:
+            nonlocal completed
+            completed += 1
+            elapsed = time.monotonic() - start_t
+            avg = elapsed / completed if completed else 0.0
+            eta = avg * (total - completed)
+            _write_progress(
+                sweep_dir=sweep_dir,
+                filename=args.progress_file,
+                record={
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "type": "done",
+                    "completed": completed,
+                    "total": total,
+                    "elapsed_s": round(elapsed, 3),
+                    "eta_s": round(eta, 3),
+                    "last": last,
+                },
+            )
+            _write_progress_txt(sweep_dir=sweep_dir, completed=completed, total=total, elapsed_s=elapsed, eta_s=eta, last=last)
+
+        jobs = int(args.jobs)
+        if jobs <= 1:
+            for noise in args.noise:
+                for seed in args.seeds:
+                    cfg_run = replace(
+                        phase_cfg,
+                        evaders=replace(phase_cfg.evaders, angle_noise=float(noise)),
+                        run=replace(phase_cfg.run, seed=int(seed)),
+                    )
+                    summary = run_summary(cfg_run)
+                    results.append({"speed_ratio": 0.0, "angle_noise": float(noise), "seed": int(seed), **summary})
+                    on_done(f"noise={float(noise):g}, seed={int(seed)}")
+        else:
+            payloads: list[tuple[dict, float, float, int]] = []
+            for noise in args.noise:
+                for seed in args.seeds:
+                    payloads.append((base_dict, 0.0, float(noise), int(seed)))
+
+            with ProcessPoolExecutor(max_workers=jobs) as ex:
+                fut_to_params = {ex.submit(_noise_worker, pl): (pl[2], pl[3]) for pl in payloads}
+                for fut in as_completed(fut_to_params):
+                    noise, seed = fut_to_params[fut]
+                    row = fut.result()
+                    results.append(row)
+                    on_done(f"noise={float(noise):g}, seed={int(seed)}")
+
+        csv_write(
+            sweep_dir / "results.csv",
+            results,
+            fieldnames=list(results[0].keys()) if results else ["angle_noise", "seed"],
+        )
+        print(f"Saved sweep to: {sweep_dir}")
+        print(f"Runs: {len(results)}")
+        return 0
+
+    if cmd == "report-noise":
+        sweep_dir = Path(args.sweep_dir)
+        out_dir = ensure_dir(args.out_dir)
+        rows = load_results_csv(sweep_dir / "results.csv")
+
+        grouped = summarize_by_two_keys(rows, key_a="speed_ratio", key_b="angle_noise")
+        grouped_rows: list[dict[str, Any]] = []
+        for (sr, noise), stats in grouped.items():
+            grouped_rows.append(
+                {
+                    "speed_ratio": sr,
+                    "angle_noise": noise,
+                    "n": stats["safe_frac"].n,
+                    "safe_mean": stats["safe_frac"].mean,
+                    "safe_ci95": stats["safe_frac"].ci95,
+                    "captured_mean": stats["captured_frac"].mean,
+                    "captured_ci95": stats["captured_frac"].ci95,
+                    "P_mean": stats["P_mean"].mean,
+                    "P_mean_ci95": stats["P_mean"].ci95,
+                    "chi_mean": stats["chi"].mean,
+                    "chi_ci95": stats["chi"].ci95,
+                }
+            )
+
+        figs_dir = ensure_dir(Path(out_dir) / "figs")
+        plot_metric_vs_x(
+            grouped_rows=grouped_rows,
+            x_key="angle_noise",
+            metric_mean="safe_mean",
+            metric_ci="safe_ci95",
+            out_path=figs_dir / "safe_vs_noise.png",
+            title="safe_frac vs angle_noise (mean ± 95% CI)",
+            xlabel="angle_noise (rad)",
+            ylabel="safe_frac",
+        )
+        plot_metric_vs_x(
+            grouped_rows=grouped_rows,
+            x_key="angle_noise",
+            metric_mean="chi_mean",
+            metric_ci="chi_ci95",
+            out_path=figs_dir / "chi_vs_noise.png",
+            title="χ=N·Var(P) vs angle_noise (mean ± 95% CI)",
+            xlabel="angle_noise (rad)",
+            ylabel="chi",
+        )
+        plot_metric_vs_x(
+            grouped_rows=grouped_rows,
+            x_key="angle_noise",
+            metric_mean="P_mean",
+            metric_ci="P_mean_ci95",
+            out_path=figs_dir / "P_mean_vs_noise.png",
+            title="P_mean vs angle_noise (mean ± 95% CI)",
+            xlabel="angle_noise (rad)",
+            ylabel="P_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="chi_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_chi.png",
+            title="safe_frac vs χ (group means)",
+            xlabel="chi_mean",
+            ylabel="safe_mean",
+        )
+
+        md = []
+        md.append(f"# {args.title}\n")
+        md.append("## Artifacts\n")
+        md.append(f"- Sweep directory: `{sweep_dir.as_posix()}`\n")
+        base_cfg = sweep_dir / "base_config.json"
+        if base_cfg.exists():
+            md.append(f"- Base config: `{base_cfg.as_posix()}`\n")
+        md.append(f"- Figures: `{figs_dir.as_posix()}`\n")
+        md.append("\n## Plots\n")
+        md.append("![safe_vs_noise](figs/safe_vs_noise.png)\n")
+        md.append("![chi_vs_noise](figs/chi_vs_noise.png)\n")
+        md.append("![P_mean_vs_noise](figs/P_mean_vs_noise.png)\n")
+        md.append("![scatter_safe_vs_chi](figs/scatter_safe_vs_chi.png)\n")
+        (Path(out_dir) / "report.md").write_text("\n".join(md), encoding="utf-8")
+        print(f"Wrote report to: {out_dir}")
+        return 0
+
+    if cmd == "sweep-noise":
+        if args.steps is not None:
+            cfg = replace(cfg, run=replace(cfg.run, steps=int(args.steps)))
+        if args.w_align is not None:
+            cfg = replace(cfg, evaders=replace(cfg.evaders, w_align=float(args.w_align)))
+
+        cfg = replace(
+            cfg,
+            run=replace(cfg.run, save_timeseries=not args.no_save_timeseries, save_events=not args.no_save_events),
+        )
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        sweep_dir = ensure_dir(Path(cfg.run.out_dir) / f"sweep_{stamp}_noise")
+        cfg = replace(cfg, run=replace(cfg.run, out_dir=str(sweep_dir)))
+        json_dump(sweep_dir / "base_config.json", cfg.to_dict())
+
+        total = len(args.speed_ratio) * len(args.noise) * len(args.seeds)
+        start_t = time.monotonic()
+        completed = 0
+        _write_progress(
+            sweep_dir=sweep_dir,
+            filename=args.progress_file,
+            record={"ts": datetime.now().isoformat(timespec="seconds"), "type": "start", "total": total, "jobs": int(args.jobs)},
+        )
+
+        results: list[dict[str, object]] = []
+
+        def on_done(last: str) -> None:
+            nonlocal completed
+            completed += 1
+            elapsed = time.monotonic() - start_t
+            avg = elapsed / completed if completed else 0.0
+            eta = avg * (total - completed)
+            _write_progress(
+                sweep_dir=sweep_dir,
+                filename=args.progress_file,
+                record={
+                    "ts": datetime.now().isoformat(timespec="seconds"),
+                    "type": "done",
+                    "completed": completed,
+                    "total": total,
+                    "elapsed_s": round(elapsed, 3),
+                    "eta_s": round(eta, 3),
+                    "last": last,
+                },
+            )
+            _write_progress_txt(sweep_dir=sweep_dir, completed=completed, total=total, elapsed_s=elapsed, eta_s=eta, last=last)
+
+        jobs = int(args.jobs)
+        if jobs <= 1:
+            for sr in args.speed_ratio:
+                for noise in args.noise:
+                    for seed in args.seeds:
+                        cfg_run = replace(
+                            cfg,
+                            pursuers=replace(cfg.pursuers, speed_ratio=float(sr)),
+                            evaders=replace(cfg.evaders, angle_noise=float(noise)),
+                            run=replace(cfg.run, seed=int(seed)),
+                        )
+                        last = f"sr={float(sr):g}, noise={float(noise):g}, seed={int(seed)}"
+                        run_name = f"sr{float(sr):.3f}_noise{float(noise):.3f}_seed{int(seed)}"
+                        summary, run_dir = run_once(cfg_run, run_name=run_name, save_run=bool(args.save_runs))
+                        row: dict[str, object] = {
+                            "speed_ratio": float(sr),
+                            "angle_noise": float(noise),
+                            "seed": int(seed),
+                            "run_dir": str(run_dir) if run_dir is not None else "",
+                            **summary,
+                        }
+                        results.append(row)
+                        on_done(last)
+        else:
+            base_dict = cfg.to_dict()
+            payloads: list[tuple[dict, float, float, int]] = []
+            for sr in args.speed_ratio:
+                for noise in args.noise:
+                    for seed in args.seeds:
+                        payloads.append((base_dict, float(sr), float(noise), int(seed)))
+
+            with ProcessPoolExecutor(max_workers=jobs) as ex:
+                fut_to_params = {ex.submit(_noise_worker, pl): (pl[1], pl[2], pl[3]) for pl in payloads}
+                for fut in as_completed(fut_to_params):
+                    sr, noise, seed = fut_to_params[fut]
+                    row = fut.result()
+                    row["run_dir"] = ""
+                    results.append(row)
+                    on_done(f"sr={float(sr):g}, noise={float(noise):g}, seed={int(seed)}")
+
+        csv_write(
+            sweep_dir / "results.csv",
+            results,
+            fieldnames=list(results[0].keys()) if results else ["speed_ratio", "angle_noise", "seed"],
+        )
+        print(f"Saved sweep to: {sweep_dir}")
+        print(f"Runs: {len(results)}")
         return 0
 
     raise SystemExit(f"Unknown command: {cmd}")

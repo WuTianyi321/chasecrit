@@ -45,6 +45,42 @@ def plot_metric_vs_w_align(
     plt.close(fig)
 
 
+def plot_metric_vs_x(
+    *,
+    grouped_rows: list[dict[str, Any]],
+    x_key: str,
+    metric_mean: str,
+    metric_ci: str,
+    out_path: str | Path,
+    title: str,
+    xlabel: str,
+    ylabel: str,
+) -> None:
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    speed_ratios = sorted({float(r["speed_ratio"]) for r in grouped_rows})
+    fig, ax = plt.subplots(figsize=(8.0, 4.8), dpi=160)
+
+    for sr in speed_ratios:
+        rows = [r for r in grouped_rows if float(r["speed_ratio"]) == sr]
+        rows.sort(key=lambda r: float(r[x_key]))
+        x = np.array([float(r[x_key]) for r in rows])
+        y = np.array([float(r[metric_mean]) for r in rows])
+        yerr = np.array([float(r[metric_ci]) for r in rows])
+        ax.errorbar(x, y, yerr=yerr, marker="o", linewidth=1.5, capsize=3, label=f"v_p/v_e={sr:g}")
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    ax.grid(True, alpha=0.3)
+    ax.legend(frameon=False, ncol=1)
+
+    fig.tight_layout()
+    fig.savefig(out_path)
+    plt.close(fig)
+
+
 def plot_heatmap(
     *,
     grouped_rows: list[dict[str, Any]],
