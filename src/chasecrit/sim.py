@@ -272,13 +272,28 @@ class Simulation:
             json_dump(run_dir / "events.json", self.events)
 
 
-def run_once(cfg: ExperimentConfig, *, run_name: str | None = None) -> tuple[dict[str, Any], Path]:
+def run_summary(cfg: ExperimentConfig) -> dict[str, Any]:
     sim = Simulation(cfg)
     sim.run()
+    return sim.summary()
+
+
+def run_once(
+    cfg: ExperimentConfig,
+    *,
+    run_name: str | None = None,
+    save_run: bool = True,
+) -> tuple[dict[str, Any], Path | None]:
+    sim = Simulation(cfg)
+    sim.run()
+
+    summary = sim.summary()
+    if not save_run:
+        return summary, None
 
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     if run_name is None:
         run_name = f"run_{ts}_seed{cfg.run.seed}"
     run_dir = Path(cfg.run.out_dir) / run_name
     sim.save(run_dir)
-    return sim.summary(), run_dir
+    return summary, run_dir

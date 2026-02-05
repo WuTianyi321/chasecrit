@@ -63,6 +63,7 @@
   - 明确固定项与变量项（例如固定 `N_p`，扫描 `v_p/v_e` 与 `w_align`），并给出默认配置来源（`configs/*.toml` 或 sweep 的 `base_config.json`）。
   - 图表以相对路径引用，并在正文中解释“图显示了什么”和“初步结论是什么”。
   - 初步结论需包含下一步动作（扩展参数、稳健性检验、对照组/消融）。
+- **长扫进度落盘**：长时间 sweep 必须输出可追踪进度（例如 `progress.jsonl` 与 `progress.txt`，包含 completed/total/ETA），便于估算剩余时间与故障恢复。
 
 ## Git 协作规范
 
