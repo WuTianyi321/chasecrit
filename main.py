@@ -1,6 +1,8 @@
-def main():
-    print("Hello from chasecrit!")
+from __future__ import annotations
+
+from chasecrit.cli import main
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
+

@@ -1,0 +1,48 @@
+[world]
+width = 200.0
+height = 200.0
+boundary = "periodic" # or "reflecting"
+
+[evaders]
+count = 128
+speed = 1.0
+inertia = 0.35
+neighbor_radius = 6.0
+pred_radius = 10.0
+detect_radius = 4.0
+sep_radius = 1.25
+sep_strength = 1.0
+w_align = 0.6
+w_goal = 1.2
+w_avoid = 1.5
+w_explore = 0.4
+angle_noise = 0.12
+
+[pursuers]
+count = 2
+speed_ratio = 1.1
+policy = "p0_nearest"
+capture_radius = 1.0
+
+[safe_zones]
+active_max = 4
+safe_radius = 1.0
+move_speed = 0.1
+turn_every = 50
+turn_max_deg = 10.0
+spawn_prob = 0.02
+cap_ratio = 1.0
+cap_mode = "fixed" # or "poisson"
+cap_min = 1
+min_dist_obstacle = 2.0
+min_dist_pursuer = 8.0
+min_dist_zone = 6.0
+
+[run]
+steps = 2000
+dt = 1.0
+seed = 0
+out_dir = "runs"
+save_timeseries = true
+save_events = true
+
