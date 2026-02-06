@@ -92,6 +92,9 @@ Aggregated report + figures:
 - Task noise (w_align=1.0, speed_ratio=1.1, seeds=100): `doc/results_20260206_task_noise_w10_sr11_100seeds/`
 - Task-internal `w_align` (merged seeds=200, speed_ratio 1.0~1.2): `doc/results_20260206_walign_task_internal_200seeds/`
 - Pressure contrast `w_align` (speed_ratio 0.9/1.3 and 1.4 expanded to seeds=240): `doc/results_20260206_walign_pressure_091314_sr14_240seeds/`
+- LaTeX manuscript draft:
+  - source: `paper/main.tex`
+  - compiled PDF: `paper/main.pdf`
 
 Raw sweeps (not version-controlled):
 - `runs/sweep_20260205_135921_grid/` (330 runs)

@@ -1,0 +1,174 @@
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+\usepackage{geometry}
+\geometry{left=2.4cm,right=2.4cm,top=2.6cm,bottom=2.6cm}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{siunitx}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
+
+\title{近临界集群在追逃任务中的表现边界：\\基于任务内统计判定的大规模扫描研究}
+\author{ChaseCrit Project}
+\date{2026-02-06}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+本文研究二维连续追逃场景中，逃跑者集群“更接近临界”是否能带来任务性能收益。与将无外场相变点直接迁移到任务场景不同，本文采用任务内统计判定：在同一任务设置内，以极化涨落易感性代理
+\(
+\chi = N_e \cdot \mathrm{Var}_t(P(t))
+\)
+（并辅以 \(\chi_{\text{local}}\)、\(\tau_{P,\mathrm{AR1}}\)、\(\xi_{\text{fluct}}\)）比较“相对更临界”的参数区。实验基于容量受限、缓慢移动、多安全区机制，开展 \(w_{\text{align}}\) 扫描与追捕压力对比。主结果显示：在中等压力区间（\(v_p/v_e \approx 1.0\sim1.3\)）内，生存率与 \(\chi\) 呈稳定正相关；在高压力（\(v_p/v_e=1.4\)）下该关系显著减弱甚至失效。结论表明近临界优势不是全局性质，而是受任务外场强度调制的条件性现象。
+\end{abstract}
+
+\section{引言}
+群体系统在相变附近常表现出高易感性与长程相关，理论上可能改善集体决策与扰动响应。追逃任务中，逃跑者既要保持协同，也要避免被追捕者利用可预测性。由此出现核心问题：临界性是否在对抗任务中稳定提升逃跑表现，还是仅在部分外场强度下有效。
+
+本工作聚焦逃跑者集群，采用不可显式通信、仅局部可观测的设置，重点验证：
+\begin{enumerate}
+\item 任务内部更“临界”的参数区是否对应更高生存率；
+\item 该关系是否随追捕压力变化而改变；
+\item 无外场相变识别结论是否可直接迁移到任务最优。
+\end{enumerate}
+
+\section{任务与方法}
+\subsection{场景机制}
+采用二维连续空间，逃跑者不可显式通信，仅通过局部观测邻居与追捕者运动。安全区为多目标、容量受限、缓慢移动（G0）并随机刷新；当容量耗尽时立即失效并从逻辑上消失。默认捕获规则为瞬时捕获。
+
+\subsection{策略参数}
+核心扫描参数为
+\(
+w_{\text{align}} \in [0,1]
+\)，用于控制“跟随邻居行为”的强度。\(w_{\text{align}}\) 小表示更强从众，\(w_{\text{align}}\) 大表示更自主。
+
+\subsection{任务内临界性判定}
+本文不将“无外场 phase sweep 的峰值点”直接作为任务临界先验，而在同一任务设置内以统计量相对大小定义“更接近临界”。
+
+主指标：
+\begin{equation}
+\chi = N_e \cdot \mathrm{Var}_t(P(t)),
+\end{equation}
+其中 \(P(t)\) 为存活逃跑者速度极化度。
+
+辅指标包括：
+\begin{itemize}
+\item \(\chi_{\text{local}} = N_e \cdot \mathrm{Var}(P_{\text{local}})\)；
+\item \(\tau_{P,\mathrm{AR1}} = \frac{1+\rho_1}{1-\rho_1}\)；
+\item \(\xi_{\text{fluct}}\)：速度涨落空间相关长度代理。
+\end{itemize}
+
+\subsection{实验与统计}
+主要结果来自以下两组：
+\begin{itemize}
+\item 主扫描：\(v_p/v_e \in \{1.0,1.05,1.1,1.15,1.2\}\)，\(w_{\text{align}}=0,0.05,\dots,1.0\)，每格点 seeds=200；
+\item 压力对比：\(v_p/v_e \in \{0.9,1.3,1.4\}\)，其中 \(1.4\) 扩展至 seeds=240。
+\end{itemize}
+统计采用格点均值与 95\% CI，并报告跨 \(w_{\text{align}}\) 的 Pearson 相关系数 \(\mathrm{corr}(\mathrm{safe},\chi)\) 等。
+
+\section{实验结果}
+\subsection{主扫描结果（seeds=200）}
+图~\ref{fig:main_safe_chi} 显示在 \(v_p/v_e=1.0\sim1.2\) 范围，\(w_{\text{align}}\) 对生存率与 \(\chi\) 具有共同结构：二者并非单调，且在中间区间出现较优表现带。
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/safe_vs_w_align.png}
+\caption{\(\mathrm{safe\_frac}\) vs \(w_{\text{align}}\)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/chi_vs_w_align.png}
+\caption{\(\chi\) vs \(w_{\text{align}}\)}
+\end{subfigure}
+\caption{主扫描（\(v_p/v_e=1.0\sim1.2\), seeds=200）}
+\label{fig:main_safe_chi}
+\end{figure}
+
+\subsection{压力对比与关系边界}
+表~\ref{tab:corr} 总结不同追捕压力下的关键统计。可见：
+\begin{itemize}
+\item 中等压力区（\(1.0\sim1.3\)）多呈 \(\mathrm{corr}(\mathrm{safe},\chi)>0\)；
+\item 高压力 \(v_p/v_e=1.4\) 时，\(\mathrm{corr}(\mathrm{safe},\chi)\approx 0\)，且 \(\mathrm{corr}(\mathrm{safe},\xi_{\text{fluct}})<0\)。
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\caption{任务内临界性与性能关系（按 \(w_{\text{align}}\) 格点均值）}
+\label{tab:corr}
+\begin{tabular}{cccccc}
+\toprule
+\(v_p/v_e\) & seeds & \(\mathrm{corr}(\mathrm{safe},\chi)\) & \(\mathrm{corr}(\mathrm{safe},\tau)\) & \(\mathrm{corr}(\mathrm{safe},\xi)\) & \(|w_{\mathrm{safe}}-w_{\chi}|\) \\
+\midrule
+0.90 & 120 & 0.272 & 0.272 & 0.236 & 0.05 \\
+1.00 & 200 & 0.376 & 0.383 & 0.374 & 0.15 \\
+1.05 & 200 & 0.441 & 0.369 & 0.371 & 0.35 \\
+1.10 & 200 & 0.467 & 0.447 & 0.525 & 0.50 \\
+1.15 & 200 & 0.621 & 0.585 & 0.414 & 0.30 \\
+1.20 & 200 & 0.492 & 0.379 & 0.523 & 0.10 \\
+1.30 & 120 & 0.378 & 0.408 & 0.320 & 0.45 \\
+1.40 & 240 & 0.024 & 0.126 & -0.322 & 0.60 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+图~\ref{fig:pressure_scatter} 给出压力对比实验中的 \(\mathrm{safe}\)-\(\chi\) 散点，可见在高压力下耦合关系明显弱化。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.68\textwidth]{../doc/results_20260206_walign_pressure_091314_sr14_240seeds/figs/scatter_safe_vs_chi.png}
+\caption{压力对比实验中的 \(\mathrm{safe}\) 与 \(\chi\)（组均值散点）}
+\label{fig:pressure_scatter}
+\end{figure}
+
+\section{讨论}
+\subsection{为何“近临界优势”呈压力依赖}
+在当前机制下，\(v_p/v_e\) 提升会增强外场约束。中等压力时，较高涨落与相关时间可能提升“群体重构+目标切换”的适应性；极高压力时，追捕过程主导系统动力学，内部涨落优势难以转化为生存收益。
+
+\subsection{与噪声路线的关系}
+无外场相变识别与任务内最优并非同一问题。本文结果支持以下分解：
+\begin{itemize}
+\item “任务内更临界（统计意义）是否更好”在部分压力区成立；
+\item “外部 phase 点能否直接迁移为任务最优”当前不成立。
+\end{itemize}
+
+\subsection{局限}
+当前追捕策略仍以近邻追逐为主，尚未充分刻画预测拦截与协作追捕；此外，障碍与反射边界下的稳健性验证仍不足。
+
+\section{结论与下一步}
+本文给出一个可复现结论：近临界与性能提升的关系不是全局真命题，而是受追捕压力调制的条件性关系。在 \(v_p/v_e=1.0\sim1.3\) 区间可观察到正耦合；在 \(v_p/v_e=1.4\) 时关系衰减。下一步将细化压力阈值（\(1.3\sim1.5\)）、引入预测拦截追捕策略，并在反射边界/障碍场景复验。
+
+\section*{复现信息}
+主数据与报告：
+\begin{itemize}
+\item \texttt{doc/results\_20260206\_walign\_task\_internal\_200seeds}
+\item \texttt{doc/results\_20260206\_walign\_pressure\_091314\_sr14\_240seeds}
+\item \texttt{doc/论文准备-结果索引与复现清单.md}
+\end{itemize}
+
+\begin{thebibliography}{99}
+\bibitem{vicsek1995}
+Vicsek T, Czirók A, Ben-Jacob E, Cohen I, Shochet O.
+Novel Type of Phase Transition in a System of Self-Driven Particles.
+\textit{Physical Review Letters}, 1995, 75(6): 1226--1229.
+
+\bibitem{chate2008}
+Chaté H, Ginelli F, Grégoire G, Raynaud F.
+Collective motion of self-propelled particles interacting without cohesion.
+\textit{Physical Review E}, 2008, 77: 046113.
+
+\bibitem{mora2011}
+Mora T, Bialek W.
+Are Biological Systems Poised at Criticality?
+\textit{Journal of Statistical Physics}, 2011, 144: 268--302.
+
+\bibitem{sumpter2010}
+Sumpter D J T.
+\textit{Collective Animal Behavior}.
+Princeton University Press, 2010.
+\end{thebibliography}
+
+\end{document}

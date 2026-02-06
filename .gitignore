@@ -20,3 +20,12 @@ doc/results_*_smoke/
 doc/results_20260205_phase_noise/
 doc/results_20260205_phase_noise_smoke/
 doc/results_20260205_phase_noise_wide/
+doc/results_20260205_fixedNp_scan_50seeds/
+
+# LaTeX build artifacts
+paper/*.aux
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.log
+paper/*.out
+paper/*.xdv
