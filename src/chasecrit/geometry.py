@@ -8,7 +8,12 @@ def wrap_delta(delta: np.ndarray, size: np.ndarray) -> np.ndarray:
     Map displacement to the shortest equivalent displacement under periodic boundary.
     delta: (..., 2), size: (2,)
     """
-    return (delta + 0.5 * size) % size - 0.5 * size
+    out = np.empty_like(delta)
+    half = 0.5 * size
+    np.add(delta, half, out=out)
+    np.remainder(out, size, out=out)
+    np.subtract(out, half, out=out)
+    return out
 
 
 def wrap_delta_inplace(delta: np.ndarray, size: np.ndarray) -> None:
@@ -38,6 +43,10 @@ def apply_periodic(pos: np.ndarray, size: np.ndarray) -> np.ndarray:
     return pos % size
 
 
+def apply_periodic_inplace(pos: np.ndarray, size: np.ndarray) -> None:
+    np.remainder(pos, size, out=pos)
+
+
 def apply_reflecting(pos: np.ndarray, vel: np.ndarray, size: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """
     Reflect positions/velocities at [0,size] walls.
@@ -59,6 +68,16 @@ def apply_reflecting(pos: np.ndarray, vel: np.ndarray, size: np.ndarray) -> tupl
 
 
 def unit(vec: np.ndarray, eps: float = 1e-12) -> np.ndarray:
+    if vec.shape[-1] == 2:
+        x = vec[..., 0]
+        y = vec[..., 1]
+        n = np.sqrt(x * x + y * y)
+        inv = 1.0 / np.maximum(n, eps)
+        out = np.empty_like(vec)
+        out[..., 0] = x * inv
+        out[..., 1] = y * inv
+        return out
+
     n = np.linalg.norm(vec, axis=-1, keepdims=True)
     return vec / np.maximum(n, eps)
 
@@ -69,6 +88,7 @@ def rotate(vec: np.ndarray, angles: np.ndarray) -> np.ndarray:
     """
     c = np.cos(angles)
     s = np.sin(angles)
-    x = vec[:, 0] * c - vec[:, 1] * s
-    y = vec[:, 0] * s + vec[:, 1] * c
-    return np.stack([x, y], axis=1)
+    out = np.empty_like(vec)
+    out[:, 0] = vec[:, 0] * c - vec[:, 1] * s
+    out[:, 1] = vec[:, 0] * s + vec[:, 1] * c
+    return out

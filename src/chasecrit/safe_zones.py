@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 
 from .config import SafeZoneConfig, nominal_zone_capacity
-from .geometry import apply_periodic, unit
+from .geometry import apply_periodic_inplace, unit
 
 
 @dataclass
@@ -17,6 +17,7 @@ class SafeZones:
     cap: np.ndarray  # (K,)
     occ: np.ndarray  # (K,)
     active: np.ndarray  # (K,)
+    active_total: int
     next_id: int
     ids: np.ndarray  # (K,)
 
@@ -28,12 +29,13 @@ class SafeZones:
             cap=np.zeros((0,), dtype=np.int32),
             occ=np.zeros((0,), dtype=np.int32),
             active=np.zeros((0,), dtype=bool),
+            active_total=0,
             next_id=0,
             ids=np.zeros((0,), dtype=np.int32),
         )
 
     def active_count(self) -> int:
-        return int(self.active.sum())
+        return int(self.active_total)
 
     def step_move_g0(
         self,
@@ -61,7 +63,7 @@ class SafeZones:
         self.pos = self.pos + self.vel * dt
 
         if boundary == "periodic":
-            self.pos = apply_periodic(self.pos, world_size)
+            apply_periodic_inplace(self.pos, world_size)
         elif boundary == "reflecting":
             # Reflecting for points: fold positions; velocity flips handled by sign detection
             p = self.pos
@@ -159,10 +161,13 @@ class SafeZones:
         self.cap = np.append(self.cap, np.int32(cap))
         self.occ = np.append(self.occ, np.int32(0))
         self.active = np.append(self.active, True)
+        self.active_total += 1
         self.ids = np.append(self.ids, np.int32(zid))
 
         return {"type": "zone_spawn", "zone_id": int(zid), "cap": int(cap), "x": float(spawn_pos[0]), "y": float(spawn_pos[1])}
 
     def deactivate_full(self, idx: int) -> dict[str, Any]:
+        if self.active[idx]:
+            self.active_total -= 1
         self.active[idx] = False
         return {"type": "zone_deactivate", "zone_id": int(self.ids[idx]), "x": float(self.pos[idx, 0]), "y": float(self.pos[idx, 1])}

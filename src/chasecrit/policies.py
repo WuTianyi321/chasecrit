@@ -1,10 +1,96 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
+from typing import Any, Callable, TypeVar
 
 import numpy as np
 
 from .geometry import rotate, unit, wrap_delta, wrap_delta_inplace
+
+_Fn = TypeVar("_Fn", bound=Callable[..., Any])
+
+
+def _identity_jit(*_args: Any, **_kwargs: Any) -> Callable[[_Fn], _Fn]:
+    def deco(func: _Fn) -> _Fn:
+        return func
+
+    return deco
+
+
+try:
+    from numba import njit
+
+    _NUMBA_AVAILABLE = True
+except Exception:
+    njit = _identity_jit
+    _NUMBA_AVAILABLE = False
+
+
+if _NUMBA_AVAILABLE:
+
+    @njit(cache=True)
+    def _dense_align_sep_numba(
+        p: np.ndarray,
+        v_dir: np.ndarray,
+        periodic: bool,
+        sx: float,
+        sy: float,
+        r2_nbr: float,
+        r2_sep: float,
+        eps: float,
+        align_sum: np.ndarray,
+        sep_sum: np.ndarray,
+    ) -> None:
+        m = p.shape[0]
+        hx = 0.5 * sx
+        hy = 0.5 * sy
+
+        for i in range(m):
+            align_sum[i, 0] = 0.0
+            align_sum[i, 1] = 0.0
+            sep_sum[i, 0] = 0.0
+            sep_sum[i, 1] = 0.0
+
+            xi = p[i, 0]
+            yi = p[i, 1]
+            for j in range(m):
+                if i == j:
+                    continue
+                dx = p[j, 0] - xi
+                dy = p[j, 1] - yi
+                if periodic:
+                    if dx > hx:
+                        dx -= sx
+                    elif dx < -hx:
+                        dx += sx
+                    if dy > hy:
+                        dy -= sy
+                    elif dy < -hy:
+                        dy += sy
+
+                d2 = dx * dx + dy * dy
+
+                if d2 <= r2_nbr:
+                    align_sum[i, 0] += v_dir[j, 0]
+                    align_sum[i, 1] += v_dir[j, 1]
+
+                if d2 <= r2_sep:
+                    inv = 1.0 / (d2 if d2 > eps else eps)
+                    sep_sum[i, 0] -= inv * dx
+                    sep_sum[i, 1] -= inv * dy
+
+
+def _numba_enabled(prefer_numba: bool | None) -> bool:
+    if prefer_numba is not None:
+        return bool(prefer_numba) and _NUMBA_AVAILABLE
+    if not _NUMBA_AVAILABLE:
+        return False
+    return os.getenv("CHASECRIT_DISABLE_NUMBA", "0") != "1"
+
+
+def numba_runtime_available() -> bool:
+    return _NUMBA_AVAILABLE
 
 
 @dataclass
@@ -69,6 +155,7 @@ def evader_step(
     sep_strength: float,
     angle_noise: float,
     dense_ws: EvaderDenseWorkspace | None = None,
+    prefer_numba: bool | None = None,
 ) -> np.ndarray:
     """
     Returns new velocities for evaders (positions updated outside).
@@ -87,6 +174,7 @@ def evader_step(
     M = p.shape[0]
 
     v_dir = unit(v)
+    heading = v_dir
 
     # Neighbor interactions.
     # For small swarms, dense pairwise vectorization is typically faster than Python-level cell loops.
@@ -94,8 +182,26 @@ def evader_step(
     r2_nbr = float(r_nbr * r_nbr)
     r2_sep = float(r_sep * r_sep)
     eps = 1e-6
+    use_numba = _numba_enabled(prefer_numba)
 
-    if M <= 256:
+    if M <= 256 and use_numba:
+        align_sum = np.empty((M, 2), dtype=np.float64)
+        sep_sum = np.empty((M, 2), dtype=np.float64)
+        _dense_align_sep_numba(
+            p,
+            v_dir,
+            periodic,
+            float(size[0]),
+            float(size[1]),
+            r2_nbr,
+            r2_sep,
+            eps,
+            align_sum,
+            sep_sum,
+        )
+        d_align = unit(align_sum)
+        d_sep = unit(sep_sum) * sep_strength
+    elif M <= 256:
         if dense_ws is not None and dense_ws.n_max >= M:
             delta = dense_ws.delta[:M, :M, :]
             np.subtract(p[None, :, :], p[:, None, :], out=delta)
@@ -240,20 +346,21 @@ def evader_step(
         d_sep = unit(sep_sum) * sep_strength
 
     # Avoid pursuers (M x Np, Np is small).
+    r2_pred = float(r_pred * r_pred)
     if pos_p.shape[0] > 0:
         delta_ap = pos_p[None, :, :] - p[:, None, :]
         if periodic:
             delta_ap = wrap_delta(delta_ap, size)
         dist2_ap = np.sum(delta_ap**2, axis=2)
-        pred_mask = dist2_ap <= (r_pred * r_pred)
+        pred_mask = dist2_ap <= r2_pred
         inv_dp = 1.0 / np.maximum(dist2_ap, eps)
-        away = -(delta_ap * inv_dp[:, :, None])
-        away[~pred_mask] = 0.0
-        d_avoid = unit(away.sum(axis=1))
+        w_avoid_local = pred_mask.astype(np.float64) * inv_dp
+        d_avoid = unit(-(w_avoid_local[:, :, None] * delta_ap).sum(axis=1))
     else:
         d_avoid = np.zeros((M, 2), dtype=np.float64)
 
     # Goal towards nearest detectable active zone (K is small).
+    r2_detect = float(r_detect * r_detect)
     active_z = np.flatnonzero(zone_active)
     has_goal = np.zeros((M,), dtype=bool)
     d_goal = np.zeros((M, 2), dtype=np.float64)
@@ -263,8 +370,9 @@ def evader_step(
         if periodic:
             delta_az = wrap_delta(delta_az, size)
         dist2_az = np.sum(delta_az**2, axis=2)
-        detectable = dist2_az <= (r_detect * r_detect)
-        dist2_masked = np.where(detectable, dist2_az, np.inf)
+        detectable = dist2_az <= r2_detect
+        dist2_masked = dist2_az.copy()
+        dist2_masked[~detectable] = np.inf
         k = np.argmin(dist2_masked, axis=1)
         best = dist2_masked[np.arange(M), k]
         has_goal = np.isfinite(best)
@@ -272,10 +380,9 @@ def evader_step(
         d_goal = unit(best_delta)
 
     # Explore: keep heading or random.
-    heading = unit(v)
-    near_zero = np.linalg.norm(v, axis=1) < 1e-6
+    near_zero = (v[:, 0] * v[:, 0] + v[:, 1] * v[:, 1]) < 1e-12
     rand_dir = unit(rng.normal(size=(M, 2)))
-    d_explore = heading
+    d_explore = heading.copy()
     d_explore[near_zero] = rand_dir[near_zero]
 
     d = (

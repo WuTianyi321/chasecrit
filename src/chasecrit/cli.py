@@ -19,6 +19,7 @@ from .config import (
     WorldConfig,
     load_config,
 )
+from .bench import run_small_benchmark
 from .io_utils import csv_write, ensure_dir, json_dump
 from .report import load_results_csv, summarize_by_group, summarize_by_two_keys, write_group_summary_csv
 from .plotting import plot_heatmap, plot_metric_vs_w_align, plot_metric_vs_x, plot_scatter
@@ -89,6 +90,14 @@ def _build_parser() -> argparse.ArgumentParser:
     sweep_noise.add_argument("--save-runs", action="store_true", help="Save per-run directories under the sweep dir (slower)")
     sweep_noise.add_argument("--jobs", type=int, default=1, help="Parallel workers (processes). Default 1.")
     sweep_noise.add_argument("--progress-file", type=str, default="progress.jsonl", help="Progress log filename inside sweep dir")
+
+    bench = sub.add_parser("bench-speed", help="Small benchmark for speed and behavior parity (NumPy vs Numba)")
+    _base_args(bench)
+    bench.add_argument("--iterations", type=int, default=300, help="Iterations for evader_step micro benchmark")
+    bench.add_argument("--steps", type=int, default=300, help="Episode steps for simulation benchmark")
+    bench.add_argument("--repeats", type=int, default=3, help="Number of repeated measurements")
+    bench.add_argument("--seed", type=int, default=0, help="Base random seed")
+    bench.add_argument("--json-out", type=str, default=None, help="Optional path to save benchmark JSON")
 
     return p
 
@@ -176,6 +185,7 @@ def main(argv: list[str] | None = None) -> int:
         "report",
         "phase-sweep-noise",
         "report-noise",
+        "bench-speed",
     }
     if not argv:
         argv = ["run"]
@@ -929,6 +939,37 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(f"Saved sweep to: {sweep_dir}")
         print(f"Runs: {len(results)}")
+        return 0
+
+    if cmd == "bench-speed":
+        result = run_small_benchmark(
+            cfg,
+            iterations=int(args.iterations),
+            steps=int(args.steps),
+            repeats=int(args.repeats),
+            seed=int(args.seed),
+        )
+        print("Benchmark summary:")
+        print(f"- numba_available: {result['numba_available']}")
+        print(f"- evader_step numpy mean (s): {result['evader_step_numpy_mean_s']:.6f}")
+        print(f"- evader_step numba mean (s): {result['evader_step_numba_mean_s']:.6f}")
+        print(f"- evader_step speedup (x): {result['evader_step_speedup_x']:.3f}")
+        print(f"- simulation numpy mean (s): {result['simulation_numpy_mean_s']:.6f}")
+        print(f"- simulation numba mean (s): {result['simulation_numba_mean_s']:.6f}")
+        print(f"- simulation speedup (x): {result['simulation_speedup_x']:.3f}")
+        behavior = result["behavior_check"]
+        print(f"- behavior count mismatches: {int(behavior['count_mismatch_runs'])}")
+        print(f"- behavior max safe_frac delta: {float(behavior['max_safe_frac_delta']):.6e}")
+        print(f"- behavior max chi delta: {float(behavior['max_chi_delta']):.6e}")
+
+        out_path: Path
+        if args.json_out is None:
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            out_path = Path(cfg.run.out_dir) / f"bench_{stamp}.json"
+        else:
+            out_path = Path(args.json_out)
+        json_dump(out_path, result)
+        print(f"Saved benchmark json: {out_path}")
         return 0
 
     raise SystemExit(f"Unknown command: {cmd}")

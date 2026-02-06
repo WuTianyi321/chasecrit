@@ -21,7 +21,7 @@ def test_phase_setting_regression_summary() -> None:
         run=replace(cfg.run, steps=300, seed=0, save_timeseries=False, save_events=False),
     )
 
-    s = run_summary(cfg)
+    s = run_summary(cfg, prefer_numba=False)
     assert s["safe"] == 0
     assert s["captured"] == 0
     assert s["steps_recorded"] == 300
@@ -39,7 +39,7 @@ def test_task_setting_regression_summary() -> None:
     cfg = ExperimentConfig()
     cfg = replace(cfg, run=replace(cfg.run, steps=200, seed=0, save_timeseries=False, save_events=False))
 
-    s = run_summary(cfg)
+    s = run_summary(cfg, prefer_numba=False)
     assert s["steps_recorded"] == 200
     assert s["safe"] == 33
     assert s["captured"] == 6

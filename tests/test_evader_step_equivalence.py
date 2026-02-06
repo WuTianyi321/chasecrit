@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
-from chasecrit.policies import EvaderDenseWorkspace, evader_step
+from chasecrit.policies import EvaderDenseWorkspace, evader_step, numba_runtime_available
 from chasecrit.geometry import rotate, unit, wrap_delta
 
 
@@ -206,3 +207,47 @@ def test_evader_step_dense_workspace_matches_no_workspace() -> None:
     got = evader_step(rng=rng1, dense_ws=ws, **params)
 
     assert np.allclose(got, baseline, rtol=0.0, atol=1e-10)
+
+
+@pytest.mark.skipif(not numba_runtime_available(), reason="numba not available")
+def test_evader_step_numba_matches_numpy_reference() -> None:
+    rng_init = np.random.default_rng(31415)
+    rng_np = np.random.default_rng(2718)
+    rng_nb = np.random.default_rng(2718)
+
+    N = 128
+    world_size = np.array([200.0, 200.0], dtype=np.float64)
+    pos_e = rng_init.uniform(low=[0.0, 0.0], high=world_size, size=(N, 2)).astype(np.float64)
+    vel_e = unit(rng_init.normal(size=(N, 2))).astype(np.float64)
+    alive = rng_init.random(size=(N,)) > 0.25
+    pos_p = rng_init.uniform(low=[0.0, 0.0], high=world_size, size=(2, 2)).astype(np.float64)
+    pos_z = rng_init.uniform(low=[0.0, 0.0], high=world_size, size=(4, 2)).astype(np.float64)
+    zone_active = np.array([True, True, False, True], dtype=bool)
+
+    params = dict(
+        pos_e=pos_e,
+        vel_e=vel_e,
+        alive_mask=alive,
+        pos_p=pos_p,
+        pos_z=pos_z,
+        zone_active=zone_active,
+        world_size=world_size,
+        periodic=True,
+        v_e=1.0,
+        inertia=0.35,
+        r_nbr=6.0,
+        r_pred=10.0,
+        r_detect=4.0,
+        r_sep=1.25,
+        w_align=0.6,
+        w_goal=1.2,
+        w_avoid=1.5,
+        w_explore=0.4,
+        sep_strength=1.0,
+        angle_noise=0.12,
+    )
+
+    got_np = evader_step(rng=rng_np, prefer_numba=False, **params)
+    got_nb = evader_step(rng=rng_nb, prefer_numba=True, **params)
+
+    assert np.allclose(got_nb, got_np, rtol=0.0, atol=1e-10)

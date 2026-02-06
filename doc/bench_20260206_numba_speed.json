@@ -1,0 +1,53 @@
+{
+  "behavior_check": {
+    "count_mismatch_runs": 0,
+    "max_chi_delta": 2.886579864025407e-14,
+    "max_safe_frac_delta": 0.0,
+    "rows": [
+      {
+        "captured_nb": 8,
+        "captured_np": 8,
+        "chi_nb": 1.3319248830565962,
+        "chi_np": 1.3319248830566166,
+        "safe_frac_nb": 0.2890625,
+        "safe_frac_np": 0.2890625,
+        "safe_nb": 37,
+        "safe_np": 37,
+        "seed": 0
+      },
+      {
+        "captured_nb": 6,
+        "captured_np": 6,
+        "chi_nb": 2.4285862572695596,
+        "chi_np": 2.4285862572695884,
+        "safe_frac_nb": 0.2890625,
+        "safe_frac_np": 0.2890625,
+        "safe_nb": 37,
+        "safe_np": 37,
+        "seed": 1
+      },
+      {
+        "captured_nb": 8,
+        "captured_np": 8,
+        "chi_nb": 0.693449548937671,
+        "chi_np": 0.6934495489376726,
+        "safe_frac_nb": 0.1953125,
+        "safe_frac_np": 0.1953125,
+        "safe_nb": 25,
+        "safe_np": 25,
+        "seed": 2
+      }
+    ]
+  },
+  "evader_step_numba_mean_s": 0.1389895666652592,
+  "evader_step_numpy_mean_s": 0.5608493666659342,
+  "evader_step_speedup_x": 4.0351904112103405,
+  "iterations": 256,
+  "numba_available": true,
+  "repeats": 3,
+  "seed": 0,
+  "simulation_numba_mean_s": 0.2110100666662523,
+  "simulation_numpy_mean_s": 0.5518905333301518,
+  "simulation_speedup_x": 2.615470162393053,
+  "steps": 240
+}

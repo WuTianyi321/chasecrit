@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from .config import ExperimentConfig, load_config
-from .geometry import apply_periodic, apply_reflecting, unit, wrap_delta
+from .geometry import apply_periodic_inplace, apply_reflecting, unit, wrap_delta_inplace
 from .io_utils import csv_write, ensure_dir, json_dump
 from .metrics import component_count, correlation_length_fluctuation, local_polarization_stats, polarization
 from .policies import EvaderDenseWorkspace, evader_step, pursuer_step_p0_nearest
@@ -16,8 +16,9 @@ from .safe_zones import SafeZones
 
 
 class Simulation:
-    def __init__(self, cfg: ExperimentConfig):
+    def __init__(self, cfg: ExperimentConfig, *, prefer_numba: bool | None = None):
         self.cfg = cfg
+        self.prefer_numba = prefer_numba
         self.rng = np.random.default_rng(cfg.run.seed)
 
         w = cfg.world.width
@@ -35,6 +36,15 @@ class Simulation:
         Np = cfg.pursuers.count
         self.pos_p = self.rng.uniform(low=[0.0, 0.0], high=self.world_size, size=(Np, 2)).astype(np.float64)
         self.vel_p = np.zeros((Np, 2), dtype=np.float64)
+
+        self._capture_delta = np.empty((Ne, max(1, Np), 2), dtype=np.float64)
+        self._capture_dist2 = np.empty((Ne, max(1, Np)), dtype=np.float64)
+        self._capture_tmp = np.empty((Ne, max(1, Np)), dtype=np.float64)
+        self._capture_near = np.empty((Ne, max(1, Np)), dtype=bool)
+        self._zone_delta = np.empty((Ne, 2), dtype=np.float64)
+        self._zone_dist2 = np.empty((Ne,), dtype=np.float64)
+        self._zone_tmp = np.empty((Ne,), dtype=np.float64)
+        self._zone_within = np.empty((Ne,), dtype=bool)
 
         self.zones = SafeZones.empty()
 
@@ -61,9 +71,10 @@ class Simulation:
     def _spawn_zones(self, t: int) -> None:
         cfgz = self.cfg.safe_zones
         boundary = self.cfg.world.boundary
+        active_count = self.zones.active_count()
 
         # Hard constraint: never allow 0 active zones
-        if self.zones.active_count() == 0 and cfgz.active_max > 0:
+        if active_count == 0 and cfgz.active_max > 0:
             ev = self.zones.spawn_one(
                 cfg=cfgz,
                 world_size=self.world_size,
@@ -76,8 +87,9 @@ class Simulation:
                 ev["t"] = t
                 if self.cfg.run.save_events:
                     self.events.append(ev)
+                active_count += 1
 
-        if self.zones.active_count() >= cfgz.active_max:
+        if active_count >= cfgz.active_max:
             return
 
         if self.rng.random() < cfgz.spawn_prob:
@@ -159,11 +171,12 @@ class Simulation:
             sep_strength=cfg.evaders.sep_strength,
             angle_noise=cfg.evaders.angle_noise,
             dense_ws=self._evader_dense_ws,
+            prefer_numba=self.prefer_numba,
         )
         self.pos_e = self.pos_e + self.vel_e * dt
 
         if self.cfg.world.boundary == "periodic":
-            self.pos_e = apply_periodic(self.pos_e, self.world_size)
+            apply_periodic_inplace(self.pos_e, self.world_size)
         else:
             self.pos_e, self.vel_e = apply_reflecting(self.pos_e, self.vel_e, self.world_size)
 
@@ -179,17 +192,26 @@ class Simulation:
         )
         self.pos_p = self.pos_p + self.vel_p * dt
         if self.cfg.world.boundary == "periodic":
-            self.pos_p = apply_periodic(self.pos_p, self.world_size)
+            apply_periodic_inplace(self.pos_p, self.world_size)
         else:
             self.pos_p, self.vel_p = apply_reflecting(self.pos_p, self.vel_p, self.world_size)
 
         # Capture (instant)
         if alive_mask.any() and self.pos_p.shape[0] > 0:
-            ep = self.pos_p[None, :, :] - self.pos_e[:, None, :]
+            npurs = self.pos_p.shape[0]
+            ep = self._capture_delta[:, :npurs, :]
+            np.subtract(self.pos_p[None, :, :], self.pos_e[:, None, :], out=ep)
             if self.periodic:
-                ep = wrap_delta(ep, self.world_size)
-            dist2 = np.sum(ep**2, axis=2)
-            near = dist2 <= (cfg.pursuers.capture_radius * cfg.pursuers.capture_radius)
+                wrap_delta_inplace(ep, self.world_size)
+
+            dist2 = self._capture_dist2[:, :npurs]
+            np.multiply(ep[:, :, 0], ep[:, :, 0], out=dist2)
+            tmp = self._capture_tmp[:, :npurs]
+            np.multiply(ep[:, :, 1], ep[:, :, 1], out=tmp)
+            np.add(dist2, tmp, out=dist2)
+
+            near = self._capture_near[:, :npurs]
+            np.less_equal(dist2, cfg.pursuers.capture_radius * cfg.pursuers.capture_radius, out=near)
             to_cap = alive_mask & near.any(axis=1)
             if to_cap.any():
                 idxs = np.flatnonzero(to_cap)
@@ -204,14 +226,22 @@ class Simulation:
         alive_mask = self.alive & (~self.safe) & (~self.captured)
         if alive_mask.any() and self.zones.active_count() > 0:
             active_idx = np.flatnonzero(self.zones.active)
-            zpos = self.zones.pos[active_idx]
-            ez = zpos[None, :, :] - self.pos_e[:, None, :]
-            if self.periodic:
-                ez = wrap_delta(ez, self.world_size)
-            dist2 = np.sum(ez**2, axis=2)
-            within = dist2 <= (cfg.safe_zones.safe_radius * cfg.safe_zones.safe_radius)
-            for local_k, zone_k in enumerate(active_idx.tolist()):
-                entrants = np.flatnonzero(within[:, local_k] & alive_mask)
+            for zone_k in active_idx.tolist():
+                if not self.zones.active[zone_k]:
+                    continue
+
+                ez = self._zone_delta
+                np.subtract(self.zones.pos[zone_k], self.pos_e, out=ez)
+                if self.periodic:
+                    wrap_delta_inplace(ez, self.world_size)
+
+                dist2 = self._zone_dist2
+                np.multiply(ez[:, 0], ez[:, 0], out=dist2)
+                np.multiply(ez[:, 1], ez[:, 1], out=self._zone_tmp)
+                np.add(dist2, self._zone_tmp, out=dist2)
+                np.less_equal(dist2, cfg.safe_zones.safe_radius * cfg.safe_zones.safe_radius, out=self._zone_within)
+
+                entrants = np.flatnonzero(self._zone_within & alive_mask)
                 if entrants.size == 0:
                     continue
                 self.rng.shuffle(entrants)
@@ -320,8 +350,8 @@ class Simulation:
             json_dump(run_dir / "events.json", self.events)
 
 
-def run_summary(cfg: ExperimentConfig) -> dict[str, Any]:
-    sim = Simulation(cfg)
+def run_summary(cfg: ExperimentConfig, *, prefer_numba: bool | None = None) -> dict[str, Any]:
+    sim = Simulation(cfg, prefer_numba=prefer_numba)
     sim.run()
     return sim.summary()
 
@@ -331,8 +361,9 @@ def run_once(
     *,
     run_name: str | None = None,
     save_run: bool = True,
+    prefer_numba: bool | None = None,
 ) -> tuple[dict[str, Any], Path | None]:
-    sim = Simulation(cfg)
+    sim = Simulation(cfg, prefer_numba=prefer_numba)
     sim.run()
 
     summary = sim.summary()
