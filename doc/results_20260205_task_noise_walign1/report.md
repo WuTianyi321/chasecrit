@@ -18,3 +18,7 @@
 ![P_mean_vs_noise](figs/P_mean_vs_noise.png)
 
 ![scatter_safe_vs_chi](figs/scatter_safe_vs_chi.png)
+
+![scatter_safe_vs_xi](figs/scatter_safe_vs_xi.png)
+
+![scatter_safe_vs_components](figs/scatter_safe_vs_components.png)
