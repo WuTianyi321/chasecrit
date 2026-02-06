@@ -1,0 +1,26 @@
+\section{任务与方法}
+\subsection{场景与信息约束}
+环境为二维连续空间。逃跑者无显式通信，仅局部观测邻居、追捕者与安全区。安全区为多目标、容量受限、缓慢移动并随机刷新；容量耗尽后失效消失。默认捕获规则为瞬时捕获。
+
+\subsection{策略参数与控制变量}
+核心行为参数为
+\(
+w_{\text{align}} \in [0,1]
+\)，用于调节邻居跟随强度；并使用角噪声 \(\text{angle\_noise}\) 作为另一条控制参路线。追捕强度由速度比 \(v_p/v_e\) 表征。
+
+\subsection{任务内临界性判定}
+主判定指标为
+\begin{equation}
+\chi = N_e \cdot \mathrm{Var}_t(P(t)),
+\end{equation}
+其中 \(P(t)\) 是存活逃跑者速度极化度。辅助指标包括：
+\begin{itemize}
+\item \(\chi_{\text{local}} = N_e \cdot \mathrm{Var}(P_{\text{local}})\)；
+\item \(\tau_{P,\mathrm{AR1}} = \frac{1+\rho_1}{1-\rho_1}\)；
+\item \(\xi_{\text{fluct}}\)：涨落相关长度代理。
+\end{itemize}
+本文将“更近临界”定义为同一任务设置内上述指标相对更高，而非外部 phase 峰值的直接迁移。
+
+\subsection{统计协议}
+每个参数格点使用多随机种子重复，报告均值与 95\% CI。关联分析使用格点均值层面的 Pearson（必要时补充 Spearman）相关系数。
+

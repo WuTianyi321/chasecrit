@@ -93,10 +93,19 @@ Aggregated report + figures:
 - Task-internal `w_align` (merged seeds=200, speed_ratio 1.0~1.2): `doc/results_20260206_walign_task_internal_200seeds/`
 - Pressure contrast `w_align` (speed_ratio 0.9/1.3 and 1.4 expanded to seeds=240): `doc/results_20260206_walign_pressure_091314_sr14_240seeds/`
 - LaTeX manuscript draft:
-  - source: `paper/main.tex`
+  - source: `paper/main.tex` + section files under `paper/sections/`
   - compiled PDF: `paper/main.pdf`
-  - updated to include all major result routes (task-internal `w_align`, pressure contrast, noise-route strong positive correlation, phase-vs-task contrast).
-  - latest revision adds a broad appendix index (R1~R13) and fixes noise summary table readability (explicit peak locations/values; phase safe marked N/A).
+  - manuscript is organized as subdocuments (`00_abstract` ... `06_reproducibility`) for maintainable editing.
+  - results section now covers all completed batches using unified IDs:
+    - quantitative: `E01..E12`
+    - pilot/process validation: `P01..P06`
+  - corrected noise summary table semantics:
+    - `task_noise_w10_sr11_100seeds`: `argmax safe` at noise `0.2`, `argmax chi` at noise `0.0`
+    - `task_noise_w06_sr11_100seeds`: both peaks at noise `0.0`
+    - `phase_noise_100seeds_steps1200`: `chi` peak at noise `1.8`; safe marked not-applicable in manuscript summary.
+  - discussion now explicitly separates:
+    - task-internal “higher chi => more near-critical” interpretation; and
+    - non-transferability of external phase critical point to task optimum.
 
 Raw sweeps (not version-controlled):
 - `runs/sweep_20260205_135921_grid/` (330 runs)
