@@ -38,12 +38,29 @@ def load_results_csv(path: str | Path) -> list[dict[str, Any]]:
         r = csv.DictReader(f)
         for row in r:
             out: dict[str, Any] = dict(row)
-            for k in ("w_align", "speed_ratio", "angle_noise", "safe_frac", "captured_frac", "P_mean", "P_var", "chi"):
+            for k in (
+                "w_align",
+                "speed_ratio",
+                "angle_noise",
+                "safe_frac",
+                "captured_frac",
+                "P_mean",
+                "P_var",
+                "chi",
+                "rho1_P",
+                "tau_P_ar1",
+                "xi_fluct",
+                "P_local_mean",
+                "P_local_var",
+                "chi_local",
+            ):
                 if k in out and out[k] != "" and out[k] is not None:
                     out[k] = float(out[k])
             for k in ("seed", "alive", "safe", "captured", "steps_recorded"):
                 if k in out and out[k] != "" and out[k] is not None:
                     out[k] = int(float(out[k]))
+            if "components" in out and out["components"] != "" and out["components"] is not None:
+                out["components"] = int(float(out["components"]))
             rows.append(out)
     return rows
 
@@ -62,6 +79,13 @@ def summarize_by_group(rows: list[dict[str, Any]]) -> dict[tuple[float, float], 
             "P_mean": _group_stats([float(x["P_mean"]) for x in items]),
             "P_var": _group_stats([float(x["P_var"]) for x in items]),
             "chi": _group_stats([float(x.get("chi", float("nan"))) for x in items]),
+            "rho1_P": _group_stats([float(x.get("rho1_P", float("nan"))) for x in items]),
+            "tau_P_ar1": _group_stats([float(x.get("tau_P_ar1", float("nan"))) for x in items]),
+            "xi_fluct": _group_stats([float(x.get("xi_fluct", float("nan"))) for x in items]),
+            "components": _group_stats([float(x.get("components", float("nan"))) for x in items]),
+            "P_local_mean": _group_stats([float(x.get("P_local_mean", float("nan"))) for x in items]),
+            "P_local_var": _group_stats([float(x.get("P_local_var", float("nan"))) for x in items]),
+            "chi_local": _group_stats([float(x.get("chi_local", float("nan"))) for x in items]),
         }
     return out
 
@@ -86,6 +110,13 @@ def summarize_by_two_keys(
             "P_mean": _group_stats([float(x["P_mean"]) for x in items]),
             "P_var": _group_stats([float(x["P_var"]) for x in items]),
             "chi": _group_stats([float(x.get("chi", float("nan"))) for x in items]),
+            "rho1_P": _group_stats([float(x.get("rho1_P", float("nan"))) for x in items]),
+            "tau_P_ar1": _group_stats([float(x.get("tau_P_ar1", float("nan"))) for x in items]),
+            "xi_fluct": _group_stats([float(x.get("xi_fluct", float("nan"))) for x in items]),
+            "components": _group_stats([float(x.get("components", float("nan"))) for x in items]),
+            "P_local_mean": _group_stats([float(x.get("P_local_mean", float("nan"))) for x in items]),
+            "P_local_var": _group_stats([float(x.get("P_local_var", float("nan"))) for x in items]),
+            "chi_local": _group_stats([float(x.get("chi_local", float("nan"))) for x in items]),
         }
     return out
 
@@ -110,6 +141,20 @@ def write_group_summary_csv(
         "P_var_ci95",
         "chi_mean",
         "chi_ci95",
+        "rho1_P_mean",
+        "rho1_P_ci95",
+        "tau_P_ar1_mean",
+        "tau_P_ar1_ci95",
+        "xi_fluct_mean",
+        "xi_fluct_ci95",
+        "components_mean",
+        "components_ci95",
+        "P_local_mean",
+        "P_local_mean_ci95",
+        "P_local_var",
+        "P_local_var_ci95",
+        "chi_local_mean",
+        "chi_local_ci95",
     ]
     with p.open("w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
@@ -130,5 +175,19 @@ def write_group_summary_csv(
                 "P_var_ci95": g["P_var"].ci95,
                 "chi_mean": g["chi"].mean,
                 "chi_ci95": g["chi"].ci95,
+                "rho1_P_mean": g["rho1_P"].mean,
+                "rho1_P_ci95": g["rho1_P"].ci95,
+                "tau_P_ar1_mean": g["tau_P_ar1"].mean,
+                "tau_P_ar1_ci95": g["tau_P_ar1"].ci95,
+                "xi_fluct_mean": g["xi_fluct"].mean,
+                "xi_fluct_ci95": g["xi_fluct"].ci95,
+                "components_mean": g["components"].mean,
+                "components_ci95": g["components"].ci95,
+                "P_local_mean": g["P_local_mean"].mean,
+                "P_local_mean_ci95": g["P_local_mean"].ci95,
+                "P_local_var": g["P_local_var"].mean,
+                "P_local_var_ci95": g["P_local_var"].ci95,
+                "chi_local_mean": g["chi_local"].mean,
+                "chi_local_ci95": g["chi_local"].ci95,
             }
             w.writerow(row)

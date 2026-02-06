@@ -11,6 +11,29 @@ def wrap_delta(delta: np.ndarray, size: np.ndarray) -> np.ndarray:
     return (delta + 0.5 * size) % size - 0.5 * size
 
 
+def wrap_delta_inplace(delta: np.ndarray, size: np.ndarray) -> None:
+    """
+    In-place version of wrap_delta for periodic boundaries.
+    delta is modified in-place.
+    """
+    Lx = float(size[0])
+    Ly = float(size[1])
+
+    dx = delta[..., 0]
+    dy = delta[..., 1]
+
+    hx = 0.5 * Lx
+    hy = 0.5 * Ly
+
+    np.add(dx, hx, out=dx)
+    np.remainder(dx, Lx, out=dx)
+    np.subtract(dx, hx, out=dx)
+
+    np.add(dy, hy, out=dy)
+    np.remainder(dy, Ly, out=dy)
+    np.subtract(dy, hy, out=dy)
+
+
 def apply_periodic(pos: np.ndarray, size: np.ndarray) -> np.ndarray:
     return pos % size
 

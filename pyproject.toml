@@ -8,10 +8,16 @@ version = "0.1.0"
 description = "Swarm near-criticality in pursuit-evasion tasks"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = ["numpy>=2.0.0", "matplotlib>=3.9.0"]
+dependencies = ["numpy>=2.0.0", "matplotlib>=3.9.0", "pytest>=8.0.0", "pyright>=1.1.0"]
 
 [project.scripts]
 chasecrit = "chasecrit.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/chasecrit"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "standard"
+reportMissingTypeStubs = "none"
+include = ["src"]

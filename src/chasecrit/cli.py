@@ -3,11 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 from dataclasses import replace
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import Any
 
 from .config import (
     EvaderConfig,
@@ -115,8 +116,9 @@ def _write_progress_txt(
 ) -> None:
     p = sweep_dir / "progress.txt"
     rate = completed / elapsed_s if elapsed_s > 0 else 0.0
+    eta_at = (datetime.now() + timedelta(seconds=float(eta_s))) if eta_s > 0 else datetime.now()
     p.write_text(
-        f"completed={completed}/{total} elapsed_s={elapsed_s:.1f} eta_s={eta_s:.1f} rate_runs_per_s={rate:.3f} last={last}\n",
+        f"completed={completed}/{total} elapsed_s={elapsed_s:.1f} eta_s={eta_s:.1f} eta_at={eta_at.isoformat(timespec='seconds')} rate_runs_per_s={rate:.3f} last={last}\n",
         encoding="utf-8",
     )
 
@@ -263,7 +265,7 @@ def main(argv: list[str] | None = None) -> int:
 
         results: list[dict[str, object]] = []
 
-        def on_done(row: dict[str, object], last: str) -> None:
+        def on_done_grid(row: dict[str, object], last: str) -> None:
             nonlocal completed
             completed += 1
             elapsed = time.monotonic() - start_t
@@ -305,7 +307,7 @@ def main(argv: list[str] | None = None) -> int:
                             **summary,
                         }
                         results.append(row)
-                        on_done(row, last)
+                        on_done_grid(row, last)
         else:
             jobs = int(args.jobs)
             payloads: list[tuple[dict, float, float, int]] = []
@@ -322,7 +324,7 @@ def main(argv: list[str] | None = None) -> int:
                     row["run_dir"] = ""
                     results.append(row)
                     last = f"sr={float(sr):g}, w_align={float(w):g}, seed={int(seed)}"
-                    on_done(row, last)
+                    on_done_grid(row, last)
 
         csv_write(
             sweep_dir / "results.csv",
@@ -357,6 +359,16 @@ def main(argv: list[str] | None = None) -> int:
                     "P_var_ci95": stats["P_var"].ci95,
                     "chi_mean": stats["chi"].mean,
                     "chi_ci95": stats["chi"].ci95,
+                    "rho1_P_mean": stats["rho1_P"].mean,
+                    "rho1_P_ci95": stats["rho1_P"].ci95,
+                    "tau_P_ar1_mean": stats["tau_P_ar1"].mean,
+                    "tau_P_ar1_ci95": stats["tau_P_ar1"].ci95,
+                    "xi_fluct_mean": stats["xi_fluct"].mean,
+                    "xi_fluct_ci95": stats["xi_fluct"].ci95,
+                    "components_mean": stats["components"].mean,
+                    "components_ci95": stats["components"].ci95,
+                    "chi_local_mean": stats["chi_local"].mean,
+                    "chi_local_ci95": stats["chi_local"].ci95,
                 }
             )
 
@@ -395,6 +407,22 @@ def main(argv: list[str] | None = None) -> int:
             title="Susceptibility proxy χ=N·Var(P) vs w_align (mean ± 95% CI)",
             ylabel="chi",
         )
+        plot_metric_vs_w_align(
+            grouped_rows=grouped_rows,
+            metric_mean="chi_local_mean",
+            metric_ci="chi_local_ci95",
+            out_path=figs_dir / "chi_local_vs_w_align.png",
+            title="Local susceptibility proxy χ_local=N·Var(P_local) vs w_align (mean ± 95% CI)",
+            ylabel="chi_local",
+        )
+        plot_metric_vs_w_align(
+            grouped_rows=grouped_rows,
+            metric_mean="tau_P_ar1_mean",
+            metric_ci="tau_P_ar1_ci95",
+            out_path=figs_dir / "tau_P_ar1_vs_w_align.png",
+            title="Correlation time proxy τ(P) (AR(1)) vs w_align (mean ± 95% CI)",
+            ylabel="tau_P_ar1",
+        )
         plot_heatmap(
             grouped_rows=grouped_rows,
             value_key="safe_mean",
@@ -414,6 +442,42 @@ def main(argv: list[str] | None = None) -> int:
             out_path=figs_dir / "scatter_safe_vs_chi.png",
             title="safe_frac vs χ (group means)",
             xlabel="chi_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="chi_local_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_chi_local.png",
+            title="safe_frac vs χ_local (group means)",
+            xlabel="chi_local_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="xi_fluct_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_xi.png",
+            title="safe_frac vs ξ_fluct (group means)",
+            xlabel="xi_fluct_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="tau_P_ar1_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_tau_P_ar1.png",
+            title="safe_frac vs τ(P) (group means)",
+            xlabel="tau_P_ar1_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="components_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_components.png",
+            title="safe_frac vs components (group means)",
+            xlabel="components_mean",
             ylabel="safe_mean",
         )
 
@@ -436,48 +500,67 @@ def main(argv: list[str] | None = None) -> int:
 
         md.append("\n## Aggregated summary\n")
         speed_ratios = sorted({float(r['speed_ratio']) for r in grouped_rows})
-        md.append("| v_p/v_e | best w_align (safe_frac) | safe_frac mean | best w_align (χ) | χ mean |\n")
-        md.append("|---:|---:|---:|---:|---:|\n")
+        md.append("| v_p/v_e | best w (safe) | safe | best w (χ) | χ | best w (χ_local) | χ_local | best w (τ) | τ | best w (ξ) | ξ |\n")
+        md.append("|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
         for sr in speed_ratios:
             rs = [r for r in grouped_rows if float(r["speed_ratio"]) == sr]
             rs_safe = sorted(rs, key=lambda r: float(r["safe_mean"]), reverse=True)
             rs_chi = sorted(rs, key=lambda r: float(r["chi_mean"]), reverse=True)
-            if rs_safe and rs_chi:
+            rs_xi = sorted(rs, key=lambda r: float(r["xi_fluct_mean"]), reverse=True)
+            rs_chi_local = sorted(rs, key=lambda r: float(r["chi_local_mean"]), reverse=True)
+            rs_tau = sorted(rs, key=lambda r: float(r["tau_P_ar1_mean"]), reverse=True)
+            if rs_safe and rs_chi and rs_xi and rs_chi_local and rs_tau:
                 md.append(
-                    f"| {sr:g} | {float(rs_safe[0]['w_align']):g} | {float(rs_safe[0]['safe_mean']):.4f} | {float(rs_chi[0]['w_align']):g} | {float(rs_chi[0]['chi_mean']):.4f} |\n"
+                    f"| {sr:g} | {float(rs_safe[0]['w_align']):g} | {float(rs_safe[0]['safe_mean']):.4f} | {float(rs_chi[0]['w_align']):g} | {float(rs_chi[0]['chi_mean']):.4f} | {float(rs_chi_local[0]['w_align']):g} | {float(rs_chi_local[0]['chi_local_mean']):.4f} | {float(rs_tau[0]['w_align']):g} | {float(rs_tau[0]['tau_P_ar1_mean']):.4f} | {float(rs_xi[0]['w_align']):g} | {float(rs_xi[0]['xi_fluct_mean']):.4f} |\n"
                 )
 
         # Relationship between χ and task success (group means)
-        md.append("\n## χ–performance relationship (group means)\n")
-        md.append("| v_p/v_e | corr(safe_mean, χ_mean) | |w_safe - w_χ| |\n")
-        md.append("|---:|---:|---:|\n")
+        md.append("\n## Criticality–performance relationships (group means)\n")
+        md.append("| v_p/v_e | corr(safe, χ) | |w_safe-w_χ| | corr(safe, χ_local) | |w_safe-w_χ_local| | corr(safe, τ) | |w_safe-w_τ| | corr(safe, ξ) | |w_safe-w_ξ| |\n")
+        md.append("|---:|---:|---:|---:|---:|---:|---:|---:|---:|\n")
         for sr in speed_ratios:
             rs = [r for r in grouped_rows if float(r["speed_ratio"]) == sr]
             rs_safe = sorted(rs, key=lambda r: float(r["safe_mean"]), reverse=True)
             rs_chi = sorted(rs, key=lambda r: float(r["chi_mean"]), reverse=True)
-            if not rs_safe or not rs_chi:
+            rs_xi = sorted(rs, key=lambda r: float(r["xi_fluct_mean"]), reverse=True)
+            rs_chi_local = sorted(rs, key=lambda r: float(r["chi_local_mean"]), reverse=True)
+            rs_tau = sorted(rs, key=lambda r: float(r["tau_P_ar1_mean"]), reverse=True)
+            if not rs_safe or not rs_chi or not rs_xi or not rs_chi_local or not rs_tau:
                 continue
 
-            xs = [float(r["chi_mean"]) for r in rs]
+            def corr(a: list[float], b: list[float]) -> float:
+                ax = sum(a) / len(a)
+                by = sum(b) / len(b)
+                num = sum((x - ax) * (y - by) for x, y in zip(a, b))
+                denx = sum((x - ax) ** 2 for x in a) ** 0.5
+                deny = sum((y - by) ** 2 for y in b) ** 0.5
+                return num / (denx * deny) if denx > 0 and deny > 0 else 0.0
+
             ys = [float(r["safe_mean"]) for r in rs]
-            # Pearson correlation (population)
-            x = sum(xs) / len(xs)
-            y = sum(ys) / len(ys)
-            num = sum((a - x) * (b - y) for a, b in zip(xs, ys))
-            denx = sum((a - x) ** 2 for a in xs) ** 0.5
-            deny = sum((b - y) ** 2 for b in ys) ** 0.5
-            corr = num / (denx * deny) if denx > 0 and deny > 0 else 0.0
+            corr_chi = corr([float(r["chi_mean"]) for r in rs], ys)
+            corr_chi_local = corr([float(r["chi_local_mean"]) for r in rs], ys)
+            corr_tau = corr([float(r["tau_P_ar1_mean"]) for r in rs], ys)
+            corr_xi = corr([float(r["xi_fluct_mean"]) for r in rs], ys)
 
             dw = abs(float(rs_safe[0]["w_align"]) - float(rs_chi[0]["w_align"]))
-            md.append(f"| {sr:g} | {corr:.3f} | {dw:.3f} |\n")
+            dw_chi_local = abs(float(rs_safe[0]["w_align"]) - float(rs_chi_local[0]["w_align"]))
+            dw_tau = abs(float(rs_safe[0]["w_align"]) - float(rs_tau[0]["w_align"]))
+            dw_xi = abs(float(rs_safe[0]["w_align"]) - float(rs_xi[0]["w_align"]))
+            md.append(f"| {sr:g} | {corr_chi:.3f} | {dw:.3f} | {corr_chi_local:.3f} | {dw_chi_local:.3f} | {corr_tau:.3f} | {dw_tau:.3f} | {corr_xi:.3f} | {dw_xi:.3f} |\n")
         md.append("\n## Plots\n")
         md.append(f"![safe_vs_w_align](figs/safe_vs_w_align.png)\n")
         md.append(f"![captured_vs_w_align](figs/captured_vs_w_align.png)\n")
         md.append(f"![P_mean_vs_w_align](figs/P_mean_vs_w_align.png)\n")
         md.append(f"![chi_vs_w_align](figs/chi_vs_w_align.png)\n")
+        md.append(f"![chi_local_vs_w_align](figs/chi_local_vs_w_align.png)\n")
+        md.append(f"![tau_P_ar1_vs_w_align](figs/tau_P_ar1_vs_w_align.png)\n")
         md.append(f"![heatmap_safe_mean](figs/heatmap_safe_mean.png)\n")
         md.append(f"![heatmap_chi_mean](figs/heatmap_chi_mean.png)\n")
         md.append(f"![scatter_safe_vs_chi](figs/scatter_safe_vs_chi.png)\n")
+        md.append(f"![scatter_safe_vs_chi_local](figs/scatter_safe_vs_chi_local.png)\n")
+        md.append(f"![scatter_safe_vs_xi](figs/scatter_safe_vs_xi.png)\n")
+        md.append(f"![scatter_safe_vs_tau_P_ar1](figs/scatter_safe_vs_tau_P_ar1.png)\n")
+        md.append(f"![scatter_safe_vs_components](figs/scatter_safe_vs_components.png)\n")
 
         (Path(out_dir) / "report.md").write_text("\n".join(md), encoding="utf-8")
         print(f"Wrote report to: {out_dir}")
@@ -512,7 +595,7 @@ def main(argv: list[str] | None = None) -> int:
         results: list[dict[str, object]] = []
         base_dict = phase_cfg.to_dict()
 
-        def on_done(last: str) -> None:
+        def on_done_phase(last: str) -> None:
             nonlocal completed
             completed += 1
             elapsed = time.monotonic() - start_t
@@ -544,7 +627,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     summary = run_summary(cfg_run)
                     results.append({"speed_ratio": 0.0, "angle_noise": float(noise), "seed": int(seed), **summary})
-                    on_done(f"noise={float(noise):g}, seed={int(seed)}")
+                    on_done_phase(f"noise={float(noise):g}, seed={int(seed)}")
         else:
             payloads: list[tuple[dict, float, float, int]] = []
             for noise in args.noise:
@@ -557,7 +640,7 @@ def main(argv: list[str] | None = None) -> int:
                     noise, seed = fut_to_params[fut]
                     row = fut.result()
                     results.append(row)
-                    on_done(f"noise={float(noise):g}, seed={int(seed)}")
+                    on_done_phase(f"noise={float(noise):g}, seed={int(seed)}")
 
         csv_write(
             sweep_dir / "results.csv",
@@ -589,8 +672,47 @@ def main(argv: list[str] | None = None) -> int:
                     "P_mean_ci95": stats["P_mean"].ci95,
                     "chi_mean": stats["chi"].mean,
                     "chi_ci95": stats["chi"].ci95,
+                    "rho1_P_mean": stats["rho1_P"].mean,
+                    "rho1_P_ci95": stats["rho1_P"].ci95,
+                    "tau_P_ar1_mean": stats["tau_P_ar1"].mean,
+                    "tau_P_ar1_ci95": stats["tau_P_ar1"].ci95,
+                    "xi_fluct_mean": stats["xi_fluct"].mean,
+                    "xi_fluct_ci95": stats["xi_fluct"].ci95,
+                    "components_mean": stats["components"].mean,
+                    "components_ci95": stats["components"].ci95,
+                    "chi_local_mean": stats["chi_local"].mean,
+                    "chi_local_ci95": stats["chi_local"].ci95,
                 }
             )
+
+        grouped_rows.sort(key=lambda r: (float(r["speed_ratio"]), float(r["angle_noise"])))
+        csv_write(
+            Path(out_dir) / "group_summary.csv",
+            grouped_rows,
+            fieldnames=[
+                "speed_ratio",
+                "angle_noise",
+                "n",
+                "safe_mean",
+                "safe_ci95",
+                "captured_mean",
+                "captured_ci95",
+                "P_mean",
+                "P_mean_ci95",
+                "chi_mean",
+                "chi_ci95",
+                "chi_local_mean",
+                "chi_local_ci95",
+                "rho1_P_mean",
+                "rho1_P_ci95",
+                "tau_P_ar1_mean",
+                "tau_P_ar1_ci95",
+                "xi_fluct_mean",
+                "xi_fluct_ci95",
+                "components_mean",
+                "components_ci95",
+            ],
+        )
 
         figs_dir = ensure_dir(Path(out_dir) / "figs")
         plot_metric_vs_x(
@@ -616,12 +738,32 @@ def main(argv: list[str] | None = None) -> int:
         plot_metric_vs_x(
             grouped_rows=grouped_rows,
             x_key="angle_noise",
+            metric_mean="chi_local_mean",
+            metric_ci="chi_local_ci95",
+            out_path=figs_dir / "chi_local_vs_noise.png",
+            title="χ_local=N·Var(P_local) vs angle_noise (mean ± 95% CI)",
+            xlabel="angle_noise (rad)",
+            ylabel="chi_local",
+        )
+        plot_metric_vs_x(
+            grouped_rows=grouped_rows,
+            x_key="angle_noise",
             metric_mean="P_mean",
             metric_ci="P_mean_ci95",
             out_path=figs_dir / "P_mean_vs_noise.png",
             title="P_mean vs angle_noise (mean ± 95% CI)",
             xlabel="angle_noise (rad)",
             ylabel="P_mean",
+        )
+        plot_metric_vs_x(
+            grouped_rows=grouped_rows,
+            x_key="angle_noise",
+            metric_mean="tau_P_ar1_mean",
+            metric_ci="tau_P_ar1_ci95",
+            out_path=figs_dir / "tau_P_ar1_vs_noise.png",
+            title="τ(P) (AR(1)) vs angle_noise (mean ± 95% CI)",
+            xlabel="angle_noise (rad)",
+            ylabel="tau_P_ar1",
         )
         plot_scatter(
             grouped_rows=grouped_rows,
@@ -630,6 +772,42 @@ def main(argv: list[str] | None = None) -> int:
             out_path=figs_dir / "scatter_safe_vs_chi.png",
             title="safe_frac vs χ (group means)",
             xlabel="chi_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="chi_local_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_chi_local.png",
+            title="safe_frac vs χ_local (group means)",
+            xlabel="chi_local_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="xi_fluct_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_xi.png",
+            title="safe_frac vs ξ_fluct (group means)",
+            xlabel="xi_fluct_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="tau_P_ar1_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_tau_P_ar1.png",
+            title="safe_frac vs τ(P) (group means)",
+            xlabel="tau_P_ar1_mean",
+            ylabel="safe_mean",
+        )
+        plot_scatter(
+            grouped_rows=grouped_rows,
+            x_key="components_mean",
+            y_key="safe_mean",
+            out_path=figs_dir / "scatter_safe_vs_components.png",
+            title="safe_frac vs components (group means)",
+            xlabel="components_mean",
             ylabel="safe_mean",
         )
 
@@ -644,8 +822,14 @@ def main(argv: list[str] | None = None) -> int:
         md.append("\n## Plots\n")
         md.append("![safe_vs_noise](figs/safe_vs_noise.png)\n")
         md.append("![chi_vs_noise](figs/chi_vs_noise.png)\n")
+        md.append("![chi_local_vs_noise](figs/chi_local_vs_noise.png)\n")
         md.append("![P_mean_vs_noise](figs/P_mean_vs_noise.png)\n")
+        md.append("![tau_P_ar1_vs_noise](figs/tau_P_ar1_vs_noise.png)\n")
         md.append("![scatter_safe_vs_chi](figs/scatter_safe_vs_chi.png)\n")
+        md.append("![scatter_safe_vs_chi_local](figs/scatter_safe_vs_chi_local.png)\n")
+        md.append("![scatter_safe_vs_xi](figs/scatter_safe_vs_xi.png)\n")
+        md.append("![scatter_safe_vs_tau_P_ar1](figs/scatter_safe_vs_tau_P_ar1.png)\n")
+        md.append("![scatter_safe_vs_components](figs/scatter_safe_vs_components.png)\n")
         (Path(out_dir) / "report.md").write_text("\n".join(md), encoding="utf-8")
         print(f"Wrote report to: {out_dir}")
         return 0
@@ -677,7 +861,7 @@ def main(argv: list[str] | None = None) -> int:
 
         results: list[dict[str, object]] = []
 
-        def on_done(last: str) -> None:
+        def on_done_noise(last: str) -> None:
             nonlocal completed
             completed += 1
             elapsed = time.monotonic() - start_t
@@ -720,7 +904,7 @@ def main(argv: list[str] | None = None) -> int:
                             **summary,
                         }
                         results.append(row)
-                        on_done(last)
+                        on_done_noise(last)
         else:
             base_dict = cfg.to_dict()
             payloads: list[tuple[dict, float, float, int]] = []
@@ -736,7 +920,7 @@ def main(argv: list[str] | None = None) -> int:
                     row = fut.result()
                     row["run_dir"] = ""
                     results.append(row)
-                    on_done(f"sr={float(sr):g}, noise={float(noise):g}, seed={int(seed)}")
+                    on_done_noise(f"sr={float(sr):g}, noise={float(noise):g}, seed={int(seed)}")
 
         csv_write(
             sweep_dir / "results.csv",

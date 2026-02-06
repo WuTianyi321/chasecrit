@@ -10,8 +10,8 @@ import numpy as np
 from .config import ExperimentConfig, load_config
 from .geometry import apply_periodic, apply_reflecting, unit, wrap_delta
 from .io_utils import csv_write, ensure_dir, json_dump
-from .metrics import polarization
-from .policies import evader_step, pursuer_step_p0_nearest
+from .metrics import component_count, correlation_length_fluctuation, local_polarization_stats, polarization
+from .policies import EvaderDenseWorkspace, evader_step, pursuer_step_p0_nearest
 from .safe_zones import SafeZones
 
 
@@ -45,12 +45,18 @@ class Simulation:
         self._P_n = 0
         self._P_mean = 0.0
         self._P_M2 = 0.0
+        self._P_prev: float | None = None
+        self._P_lag1_sum = 0.0
 
         # Always record final counts; optionally store full timeseries/events
         self._last_alive = int(self.alive.sum())
         self._last_safe = 0
         self._last_captured = 0
         self._steps_recorded = 0
+
+        self._evader_dense_ws: EvaderDenseWorkspace | None = None
+        if int(cfg.evaders.count) <= 512:
+            self._evader_dense_ws = EvaderDenseWorkspace.create(int(cfg.evaders.count))
 
     def _spawn_zones(self, t: int) -> None:
         cfgz = self.cfg.safe_zones
@@ -91,6 +97,10 @@ class Simulation:
     def _update_timeseries(self, t: int) -> None:
         alive_mask = self.alive & (~self.safe) & (~self.captured)
         P = polarization(self.vel_e, alive_mask)
+
+        if self._P_prev is not None:
+            self._P_lag1_sum += float(P) * float(self._P_prev)
+        self._P_prev = float(P)
 
         # Online stats update
         self._P_n += 1
@@ -148,6 +158,7 @@ class Simulation:
             w_explore=cfg.evaders.w_explore,
             sep_strength=cfg.evaders.sep_strength,
             angle_noise=cfg.evaders.angle_noise,
+            dense_ws=self._evader_dense_ws,
         )
         self.pos_e = self.pos_e + self.vel_e * dt
 
@@ -248,6 +259,36 @@ class Simulation:
         P_mean = float(self._P_mean) if self._P_n else 0.0
         P_var = float(self._P_M2 / self._P_n) if self._P_n else 0.0
         Ne0 = int(self.cfg.evaders.count)
+        rho1_P = 0.0
+        tau_P_ar1 = 0.0
+        if self._P_n >= 2 and P_var > 1e-12:
+            lag1_mean = float(self._P_lag1_sum / (self._P_n - 1))
+            cov1 = lag1_mean - P_mean * P_mean
+            rho1_P = float(cov1 / P_var)
+            rho1_P = float(np.clip(rho1_P, -0.99, 0.99))
+            tau_P_ar1 = float((1.0 + rho1_P) / (1.0 - rho1_P))
+        xi = correlation_length_fluctuation(
+            pos=self.pos_e,
+            vel=self.vel_e,
+            alive_mask=alive_mask,
+            world_size=self.world_size,
+            periodic=self.periodic,
+        )
+        comps = component_count(
+            pos=self.pos_e,
+            alive_mask=alive_mask,
+            world_size=self.world_size,
+            periodic=self.periodic,
+            radius=self.cfg.evaders.neighbor_radius,
+        )
+        P_local_mean, P_local_var = local_polarization_stats(
+            pos=self.pos_e,
+            vel=self.vel_e,
+            alive_mask=alive_mask,
+            world_size=self.world_size,
+            periodic=self.periodic,
+            neighbor_radius=self.cfg.evaders.neighbor_radius,
+        )
         return {
             "alive": int(alive_mask.sum()),
             "safe": int(self.safe.sum()),
@@ -258,6 +299,13 @@ class Simulation:
             "P_mean": P_mean,
             "P_var": P_var,
             "chi": float(Ne0 * P_var),
+            "rho1_P": float(rho1_P),
+            "tau_P_ar1": float(tau_P_ar1),
+            "xi_fluct": float(xi),
+            "components": int(comps),
+            "P_local_mean": float(P_local_mean),
+            "P_local_var": float(P_local_var),
+            "chi_local": float(Ne0 * P_local_var),
         }
 
     def save(self, run_dir: Path) -> None:

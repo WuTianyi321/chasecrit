@@ -1,8 +1,48 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
-from .geometry import rotate, unit, wrap_delta
+from .geometry import rotate, unit, wrap_delta, wrap_delta_inplace
+
+
+@dataclass
+class EvaderDenseWorkspace:
+    """
+    Scratch buffers for the dense O(N^2) evader neighbor/separation interactions.
+    This avoids per-step allocations while preserving the same semantics and RNG usage.
+    """
+
+    delta: np.ndarray
+    dist2: np.ndarray
+    tmp: np.ndarray
+    mask_n: np.ndarray
+    mask_s: np.ndarray
+    mask_n_f32: np.ndarray
+    w_sep: np.ndarray
+    prod: np.ndarray
+    align_sum: np.ndarray
+    sep_sum: np.ndarray
+
+    @staticmethod
+    def create(n_max: int) -> "EvaderDenseWorkspace":
+        return EvaderDenseWorkspace(
+            delta=np.empty((n_max, n_max, 2), dtype=np.float64),
+            dist2=np.empty((n_max, n_max), dtype=np.float64),
+            tmp=np.empty((n_max, n_max), dtype=np.float64),
+            mask_n=np.empty((n_max, n_max), dtype=bool),
+            mask_s=np.empty((n_max, n_max), dtype=bool),
+            mask_n_f32=np.empty((n_max, n_max), dtype=np.float32),
+            w_sep=np.empty((n_max, n_max), dtype=np.float64),
+            prod=np.empty((n_max, n_max, 2), dtype=np.float64),
+            align_sum=np.empty((n_max, 2), dtype=np.float64),
+            sep_sum=np.empty((n_max, 2), dtype=np.float64),
+        )
+
+    @property
+    def n_max(self) -> int:
+        return int(self.dist2.shape[0])
 
 
 def evader_step(
@@ -28,6 +68,7 @@ def evader_step(
     w_explore: float,
     sep_strength: float,
     angle_noise: float,
+    dense_ws: EvaderDenseWorkspace | None = None,
 ) -> np.ndarray:
     """
     Returns new velocities for evaders (positions updated outside).
@@ -55,20 +96,56 @@ def evader_step(
     eps = 1e-6
 
     if M <= 256:
-        delta = p[None, :, :] - p[:, None, :]
-        if periodic:
-            delta = wrap_delta(delta, size)
-        dist2 = np.sum(delta**2, axis=2)
-        np.fill_diagonal(dist2, np.inf)
+        if dense_ws is not None and dense_ws.n_max >= M:
+            delta = dense_ws.delta[:M, :M, :]
+            np.subtract(p[None, :, :], p[:, None, :], out=delta)
+            if periodic:
+                wrap_delta_inplace(delta, size)
 
-        mask_n = dist2 <= r2_nbr
-        align_sum = mask_n.astype(np.float32) @ v_dir
+            dist2 = dense_ws.dist2[:M, :M]
+            tmp = dense_ws.tmp[:M, :M]
+            np.multiply(delta[:, :, 0], delta[:, :, 0], out=dist2)
+            np.multiply(delta[:, :, 1], delta[:, :, 1], out=tmp)
+            np.add(dist2, tmp, out=dist2)
+            np.fill_diagonal(dist2, np.inf)
+
+            mask_n = dense_ws.mask_n[:M, :M]
+            np.less_equal(dist2, r2_nbr, out=mask_n)
+            mask_n_f32 = dense_ws.mask_n_f32[:M, :M]
+            mask_n_f32[...] = mask_n
+            align_sum = dense_ws.align_sum[:M, :]
+            np.matmul(mask_n_f32, v_dir, out=align_sum)
+
+            mask_s = dense_ws.mask_s[:M, :M]
+            np.less_equal(dist2, r2_sep, out=mask_s)
+
+            # Reuse dist2 buffer as inv = 1/max(dist2, eps)
+            np.maximum(dist2, eps, out=dist2)
+            np.reciprocal(dist2, out=dist2)
+            w_sep = dense_ws.w_sep[:M, :M]
+            np.multiply(dist2, mask_s, out=w_sep, casting="unsafe")
+
+            prod = dense_ws.prod[:M, :M, :]
+            np.multiply(w_sep[:, :, None], delta, out=prod)
+            sep_sum = dense_ws.sep_sum[:M, :]
+            np.sum(prod, axis=1, out=sep_sum)
+            sep_sum *= -1.0
+        else:
+            delta = p[None, :, :] - p[:, None, :]
+            if periodic:
+                delta = wrap_delta(delta, size)
+            dist2 = np.sum(delta**2, axis=2)
+            np.fill_diagonal(dist2, np.inf)
+
+            mask_n = dist2 <= r2_nbr
+            align_sum = mask_n.astype(np.float32) @ v_dir
+
+            mask_s = dist2 <= r2_sep
+            inv = 1.0 / np.maximum(dist2, eps)
+            w = mask_s.astype(np.float64) * inv
+            sep_sum = -(w[:, :, None] * delta).sum(axis=1)
+
         d_align = unit(align_sum)
-
-        mask_s = dist2 <= r2_sep
-        inv = 1.0 / np.maximum(dist2, eps)
-        w = mask_s.astype(np.float64) * inv
-        sep_sum = -(w[:, :, None] * delta).sum(axis=1)
         d_sep = unit(sep_sum) * sep_strength
     else:
         # Cell-binned interactions (Moore neighborhood, 9 cells).
