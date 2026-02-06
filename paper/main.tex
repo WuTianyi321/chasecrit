@@ -7,6 +7,7 @@
 \usepackage{graphicx}
 \usepackage{subcaption}
 \usepackage{siunitx}
+\usepackage{longtable}
 \usepackage{hyperref}
 \hypersetup{colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue}
 
@@ -130,15 +131,15 @@ w_{\text{align}} \in [0,1]
 
 \begin{table}[htbp]
 \centering
-\caption{噪声路线关键统计（全部纳入）}
+\caption{噪声路线关键统计（全部纳入，明确峰值位置与峰值数值）}
 \label{tab:noise_all}
-\begin{tabular}{cccccc}
+\begin{tabular}{ccccccc}
 \toprule
-设置 & seeds & \(\arg\max \mathrm{safe}\) & \(\arg\max \chi\) & \(\mathrm{corr}(\mathrm{safe},\chi)\) & Spearman \(\rho_S\) \\
+设置 & seeds & noise@safe\(_{\max}\) & safe\(_{\max}\) & noise@\(\chi_{\max}\) & \(\chi_{\max}\) & \(\mathrm{corr}(\mathrm{safe},\chi)\) \\
 \midrule
-Task, \(w_{\text{align}}=0.6\) & 100 & \(0.0\) & \(0.0\) & 0.814 & 0.965 \\
-Task, \(w_{\text{align}}=1.0\) & 100 & \(0.2\) & \(0.0\) & 0.824 & 0.965 \\
-Phase (no pursuer/zone) & 100 & N/A & \(1.8\) & N/A & N/A \\
+Task, \(w_{\text{align}}=0.6\) & 100 & 0.00 & 0.3567 & 0.00 & 4.2812 & 0.814 \\
+Task, \(w_{\text{align}}=1.0\) & 100 & 0.20 & 0.3387 & 0.00 & 4.2378 & 0.824 \\
+Phase（无追捕/无安全区） & 100 & -- & -- & 1.80 & 13.2085 & -- \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -148,7 +149,7 @@ Phase (no pursuer/zone) & 100 & N/A & \(1.8\) & N/A & N/A \\
 \mathrm{corr}_{\mathrm{Pearson}}(\mathrm{safe},\chi)=0.824,\quad
 \rho_S(\mathrm{safe},\chi)=0.965,
 \]
-并且 \(\mathrm{safe}\) 峰值在 \(\text{noise}=0.2\)，\(\chi\) 峰值在 \(\text{noise}=0.0\)。这说明任务内低噪声区同时给出高生存率与高 \(\chi\)，但与 phase 峰值 \(\text{noise}\approx 1.8\) 并不一致。
+并且 \(\mathrm{safe}\) 峰值在 \(\text{noise}=0.20\)，\(\chi\) 峰值在 \(\text{noise}=0.00\)。这说明任务内低噪声区同时给出高生存率与高 \(\chi\)，但与 phase 峰值 \(\text{noise}\approx 1.8\) 并不一致。
 
 \begin{figure}[htbp]
 \centering
@@ -196,6 +197,43 @@ Phase (no pursuer/zone) & 100 & N/A & \(1.8\) & N/A & N/A \\
 
 \section{结论与下一步}
 本文给出一个可复现结论：近临界与性能提升的关系不是全局真命题，而是受追捕压力调制的条件性关系。在 \(v_p/v_e=1.0\sim1.3\) 区间可观察到正耦合；在 \(v_p/v_e=1.4\) 时关系衰减。下一步将细化压力阈值（\(1.3\sim1.5\)）、引入预测拦截追捕策略，并在反射边界/障碍场景复验。
+
+\appendix
+\section{完整实验结果索引（尽量全纳入）}
+为避免“只展示部分结果”造成结论偏差，本附录列出当前仓库中的主要实验结果目录及用途。本文正文图表来自其中的关键数据集，其余结果作为补充证据可直接复核。
+
+\begin{longtable}{p{3.5cm}p{1.8cm}p{1.8cm}p{7.3cm}}
+\toprule
+结果目录 & seeds & steps & 说明 \\
+\midrule
+\endfirsthead
+\toprule
+结果目录 & seeds & steps & 说明 \\
+\midrule
+\endhead
+R1: walign\_task\_200 & 200 & 600 & 对应目录：\texttt{results\_20260206\_walign\_task\_internal\_200seeds}；\(w_{\text{align}}\) 主扫描（\(v_p/v_e=1.0\sim1.2\)），正文主结果之一。 \\
+R2: pressure\_sr14\_240 & 120/240 & 600 & 对应目录：\texttt{results\_20260206\_walign\_pressure\_091314\_sr14\_240seeds}；压力对比（0.9/1.3/1.4，1.4 扩样），正文主结果之一。 \\
+R3: walign\_task\_80 & 80 & 600 & 对应目录：\texttt{results\_20260206\_walign\_task\_internal\_80seeds}；主扫描早期版本，用于稳定性判断与补样依据。 \\
+R4: pressure\_120 & 120 & 600 & 对应目录：\texttt{results\_20260206\_walign\_pressure\_091314\_120seeds}；压力对比早期版本（后续由 R2 覆盖）。 \\
+R5: noise\_task\_w10 & 100 & 600 & 对应目录：\texttt{results\_20260206\_task\_noise\_w10\_sr11\_100seeds}；噪声路线（\(w_{\text{align}}=1.0\)），强正相关 \(r=0.824\)。 \\
+R6: noise\_task\_w06 & 100 & 600 & 对应目录：\texttt{results\_20260206\_task\_noise\_w06\_sr11\_100seeds}；噪声路线对照组。 \\
+R7: noise\_phase\_100 & 100 & 1200 & 对应目录：\texttt{results\_20260206\_phase\_noise\_100seeds\_steps1200}；phase 识别（无追捕/无安全区）对照。 \\
+R8: fixedNp\_100 & 100 & 600 & 对应目录：\texttt{results\_20260206\_fixedNp\_sr11\_sr12\_100seeds}；固定追捕者扫描历史高样本结果。 \\
+R9: fixedNp\_50\_v2 & 50 & 600 & 对应目录：\texttt{results\_20260205\_fixedNp\_scan\_50seeds\_v2}；早期固定追捕者扫描（含 \(\chi_{\text{local}}, \xi\)）。 \\
+R10: fixedNp\_exp & 15 & 600 & 对应目录：\texttt{results\_20260205\_fixedNp\_scan\_expanded}；扩展网格早期版本。 \\
+R11: fixedNp\_pilot & 10 & 600 & 对应目录：\texttt{results\_20260205\_fixedNp\_scan}；初版试跑结果。 \\
+R12: noise\_task\_early & 15 & 600 & 对应目录：\texttt{results\_20260205\_task\_noise\_walign1}；噪声任务扫描早期版本。 \\
+R13: noise\_phase\_early & 20 & 1200 & 对应目录：\texttt{results\_20260205\_phase\_noise\_wider}；phase 识别早期扩展版本。 \\
+\bottomrule
+\end{longtable}
+
+\section{补充说明：关于“表 2 全是 0”的疑问}
+表~\ref{tab:noise_all} 已按原始 \texttt{group\_summary.csv} 重算并明确写出峰值位置与峰值值：
+\begin{itemize}
+\item \(w_{\text{align}}=1.0\) 时，noise@safe\(_{\max}=0.20\)，不是 0；
+\item \(w_{\text{align}}=1.0\) 时，noise@\(\chi_{\max}=0.00\)；
+\item phase 行由于无安全区，safe 指标不适用，已明确标为 ``--''。
+\end{itemize}
 
 \section*{复现信息}
 主数据与报告：

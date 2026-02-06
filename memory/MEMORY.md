@@ -96,6 +96,7 @@ Aggregated report + figures:
   - source: `paper/main.tex`
   - compiled PDF: `paper/main.pdf`
   - updated to include all major result routes (task-internal `w_align`, pressure contrast, noise-route strong positive correlation, phase-vs-task contrast).
+  - latest revision adds a broad appendix index (R1~R13) and fixes noise summary table readability (explicit peak locations/values; phase safe marked N/A).
 
 Raw sweeps (not version-controlled):
 - `runs/sweep_20260205_135921_grid/` (330 runs)
