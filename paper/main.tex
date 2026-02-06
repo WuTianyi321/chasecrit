@@ -22,7 +22,7 @@
 \(
 \chi = N_e \cdot \mathrm{Var}_t(P(t))
 \)
-（并辅以 \(\chi_{\text{local}}\)、\(\tau_{P,\mathrm{AR1}}\)、\(\xi_{\text{fluct}}\)）比较“相对更临界”的参数区。实验基于容量受限、缓慢移动、多安全区机制，开展 \(w_{\text{align}}\) 扫描与追捕压力对比。主结果显示：在中等压力区间（\(v_p/v_e \approx 1.0\sim1.3\)）内，生存率与 \(\chi\) 呈稳定正相关；在高压力（\(v_p/v_e=1.4\)）下该关系显著减弱甚至失效。结论表明近临界优势不是全局性质，而是受任务外场强度调制的条件性现象。
+（并辅以 \(\chi_{\text{local}}\)、\(\tau_{P,\mathrm{AR1}}\)、\(\xi_{\text{fluct}}\)）比较“相对更临界”的参数区。实验基于容量受限、缓慢移动、多安全区机制，覆盖 \(w_{\text{align}}\) 主线扫描、追捕压力对比、噪声路线对照（含 phase 识别与任务噪声扫描）。结果显示：在中等压力区间（\(v_p/v_e \approx 1.0\sim1.3\)）内，生存率与 \(\chi\) 呈稳定正相关；在高压力（\(v_p/v_e=1.4\)）下该关系显著减弱甚至失效。噪声路线中，任务设置 \(w_{\text{align}}=1.0\) 的 \(\mathrm{corr}(\mathrm{safe},\chi)\) 达到 0.824（Spearman 0.965），但 phase 峰值噪声并不对应任务最优。结论表明近临界优势是受外场与任务机制共同调制的条件性现象。
 \end{abstract}
 
 \section{引言}
@@ -62,10 +62,11 @@ w_{\text{align}} \in [0,1]
 \end{itemize}
 
 \subsection{实验与统计}
-主要结果来自以下两组：
+主要结果来自以下三组：
 \begin{itemize}
 \item 主扫描：\(v_p/v_e \in \{1.0,1.05,1.1,1.15,1.2\}\)，\(w_{\text{align}}=0,0.05,\dots,1.0\)，每格点 seeds=200；
 \item 压力对比：\(v_p/v_e \in \{0.9,1.3,1.4\}\)，其中 \(1.4\) 扩展至 seeds=240。
+\item 噪声路线：phase 识别（seeds=100, steps=1200）与任务噪声扫描（\(w_{\text{align}}\in\{0.6,1.0\}\), \(v_p/v_e=1.1\), seeds=100）。
 \end{itemize}
 统计采用格点均值与 95\% CI，并报告跨 \(w_{\text{align}}\) 的 Pearson 相关系数 \(\mathrm{corr}(\mathrm{safe},\chi)\) 等。
 
@@ -124,6 +125,61 @@ w_{\text{align}} \in [0,1]
 \label{fig:pressure_scatter}
 \end{figure}
 
+\subsection{噪声路线：将“好结果”完整纳入主文}
+用户指出的强正相关结果对应任务噪声扫描设置（\(w_{\text{align}}=1.0, v_p/v_e=1.1, \text{seeds}=100\)）。本节将 phase 识别与两个任务噪声扫描（\(w_{\text{align}}=0.6,1.0\)）统一汇总。
+
+\begin{table}[htbp]
+\centering
+\caption{噪声路线关键统计（全部纳入）}
+\label{tab:noise_all}
+\begin{tabular}{cccccc}
+\toprule
+设置 & seeds & \(\arg\max \mathrm{safe}\) & \(\arg\max \chi\) & \(\mathrm{corr}(\mathrm{safe},\chi)\) & Spearman \(\rho_S\) \\
+\midrule
+Task, \(w_{\text{align}}=0.6\) & 100 & \(0.0\) & \(0.0\) & 0.814 & 0.965 \\
+Task, \(w_{\text{align}}=1.0\) & 100 & \(0.2\) & \(0.0\) & 0.824 & 0.965 \\
+Phase (no pursuer/zone) & 100 & N/A & \(1.8\) & N/A & N/A \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+其中，\(w_{\text{align}}=1.0\) 的“强正相关”结果为：
+\[
+\mathrm{corr}_{\mathrm{Pearson}}(\mathrm{safe},\chi)=0.824,\quad
+\rho_S(\mathrm{safe},\chi)=0.965,
+\]
+并且 \(\mathrm{safe}\) 峰值在 \(\text{noise}=0.2\)，\(\chi\) 峰值在 \(\text{noise}=0.0\)。这说明任务内低噪声区同时给出高生存率与高 \(\chi\)，但与 phase 峰值 \(\text{noise}\approx 1.8\) 并不一致。
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w10_sr11_100seeds/figs/safe_vs_noise.png}
+\caption{Task, \(w_{\text{align}}=1.0\): \(\mathrm{safe}\)-noise}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w10_sr11_100seeds/figs/scatter_safe_vs_chi.png}
+\caption{Task, \(w_{\text{align}}=1.0\): \(\mathrm{safe}\)-\(\chi\)}
+\end{subfigure}
+\caption{用户指出的强相关结果：任务噪声扫描 \(w_{\text{align}}=1.0\)}
+\label{fig:w10_noise}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w06_sr11_100seeds/figs/scatter_safe_vs_chi.png}
+\caption{Task, \(w_{\text{align}}=0.6\)}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_phase_noise_100seeds_steps1200/figs/chi_vs_noise.png}
+\caption{Phase 识别：\(\chi\) 峰值在 noise \(\approx 1.8\)}
+\end{subfigure}
+\caption{噪声路线补充：任务结果与 phase 结果并列}
+\label{fig:w06_phase}
+\end{figure}
+
 \section{讨论}
 \subsection{为何“近临界优势”呈压力依赖}
 在当前机制下，\(v_p/v_e\) 提升会增强外场约束。中等压力时，较高涨落与相关时间可能提升“群体重构+目标切换”的适应性；极高压力时，追捕过程主导系统动力学，内部涨落优势难以转化为生存收益。
@@ -131,7 +187,7 @@ w_{\text{align}} \in [0,1]
 \subsection{与噪声路线的关系}
 无外场相变识别与任务内最优并非同一问题。本文结果支持以下分解：
 \begin{itemize}
-\item “任务内更临界（统计意义）是否更好”在部分压力区成立；
+\item “任务内更临界（统计意义）是否更好”在部分压力区成立（含 \(w_{\text{align}}=1.0\) 噪声扫描中的强正相关结果）；
 \item “外部 phase 点能否直接迁移为任务最优”当前不成立。
 \end{itemize}
 
@@ -146,6 +202,9 @@ w_{\text{align}} \in [0,1]
 \begin{itemize}
 \item \texttt{doc/results\_20260206\_walign\_task\_internal\_200seeds}
 \item \texttt{doc/results\_20260206\_walign\_pressure\_091314\_sr14\_240seeds}
+\item \texttt{doc/results\_20260206\_task\_noise\_w10\_sr11\_100seeds}
+\item \texttt{doc/results\_20260206\_task\_noise\_w06\_sr11\_100seeds}
+\item \texttt{doc/results\_20260206\_phase\_noise\_100seeds\_steps1200}
 \item \texttt{doc/论文准备-结果索引与复现清单.md}
 \end{itemize}
 

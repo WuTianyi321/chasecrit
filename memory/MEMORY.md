@@ -95,6 +95,7 @@ Aggregated report + figures:
 - LaTeX manuscript draft:
   - source: `paper/main.tex`
   - compiled PDF: `paper/main.pdf`
+  - updated to include all major result routes (task-internal `w_align`, pressure contrast, noise-route strong positive correlation, phase-vs-task contrast).
 
 Raw sweeps (not version-controlled):
 - `runs/sweep_20260205_135921_grid/` (330 runs)
