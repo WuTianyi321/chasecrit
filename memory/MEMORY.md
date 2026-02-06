@@ -90,6 +90,8 @@ Aggregated report + figures:
 - Phase identification (noise, seeds=100, steps=1200): `doc/results_20260206_phase_noise_100seeds_steps1200/`
 - Task noise (w_align=0.6, speed_ratio=1.1, seeds=100): `doc/results_20260206_task_noise_w06_sr11_100seeds/`
 - Task noise (w_align=1.0, speed_ratio=1.1, seeds=100): `doc/results_20260206_task_noise_w10_sr11_100seeds/`
+- Task-internal `w_align` (merged seeds=200, speed_ratio 1.0~1.2): `doc/results_20260206_walign_task_internal_200seeds/`
+- Pressure contrast `w_align` (speed_ratio 0.9/1.3 and 1.4 expanded to seeds=240): `doc/results_20260206_walign_pressure_091314_sr14_240seeds/`
 
 Raw sweeps (not version-controlled):
 - `runs/sweep_20260205_135921_grid/` (330 runs)
@@ -103,8 +105,59 @@ Raw sweeps (not version-controlled):
   - `runs/sweep_20260205_172202_noise/` (speed_ratio 1.0/1.1/1.2 × noise 0..3 step 0.2, seeds=15, w_align=1.0)
   - `runs/sweep_20260206_135213_noise/` (speed_ratio=1.1 × noise 0..3 step 0.2, seeds=100, w_align=0.6)
   - `runs/sweep_20260206_135744_noise/` (speed_ratio=1.1 × noise 0..3 step 0.2, seeds=100, w_align=1.0)
+- Task-internal `w_align` expansion:
+  - `runs/sweep_20260206_151534_grid/` (speed_ratio 1.0~1.2, seeds=80)
+  - `runs/sweep_20260206_154729_grid/` (supplement seeds 80..199)
+  - merged: `runs/sweep_20260206_merged_200seeds_grid/` (21000 rows)
+- Pressure contrast:
+  - `runs/sweep_20260206_160622_grid/` (speed_ratio 0.9/1.3/1.4, seeds=120)
+  - `runs/sweep_20260206_161736_grid/` (speed_ratio 1.4, extra seeds 120..239)
+  - merged: `runs/sweep_20260206_merged_pressure_sr14_240_grid/` (10080 rows)
 
 ## Current hypothesis status (criticality vs performance)
 
 - In the current baseline task, “closer to phase-identified critical noise” does **not** improve `safe_frac` in the tested settings (`w_align=0.6` and `w_align=1.0`, `speed_ratio=1.1`, `seeds=100`). Task success peaks at low noise (`angle_noise≈0..0.2`), while phase proxy χ peaks near `angle_noise≈1.8` in the phase-identification setting (`seeds=100`, `steps=1200`).
+- Important nuance (B2: `w_align=1.0`): within the task noise sweep itself, `safe_mean` and `chi_mean` are strongly positively correlated across noise points (`Pearson r≈0.824`, `Spearman ρ≈0.965`). This supports an in-task positive coupling, but does not imply phase critical-point transferability.
+- Current interpretation frame for adversarial tasks:
+  - Separate **autonomous criticality** (weak/no external forcing) from **forced order** (strong external forcing causes predictable behavior).
+  - Positive `safe`-`chi` correlation in-task can coexist with non-transferability of phase critical point.
+  - Pursuer strength matters: with weak pursuer (`p0_nearest`), predictability penalties may not surface.
+- Working interpretation:
+  - `supports`: in-task low-noise region can simultaneously have higher `safe` and higher `chi`.
+  - `does_not_support_yet`: using the phase-identified critical noise (`≈1.8`) as a direct recipe for better task performance.
+- Next emphasis requested by user: prioritize the autonomy route (neighbor-following parameter scan, i.e. `w_align`-based near-critical tuning) and investigate which task scenarios make critical-like regimes beneficial.
 - Detailed reader-facing write-up: `doc/实验结果-临界性验证-噪声控制参.md`.
+- New task-internal `w_align` evidence (2026-02-06 evening):
+  - For `speed_ratio=1.0~1.3`, `safe` and `chi` remain positively correlated (group-mean Pearson roughly `0.27~0.62`), supporting a conditional near-critical benefit.
+  - For stronger pressure `speed_ratio=1.4`, this relation collapses (`corr(safe,chi)≈0.02`) and `safe` vs `xi` becomes negative.
+  - Interpretation updated from “global yes/no” to “pressure-dependent regime”: near-critical benefit is plausible under moderate pressure but not robust under very strong pressure.
+  - `w_align` point optimum remains broad/flat under current noise; conclusions should be stated as an interval/band, not a single exact optimum.
+
+## Performance baseline (2026-02-06)
+
+- Added optional Numba acceleration for dense neighbor interactions in `evader_step`.
+- Added second-round runtime optimizations focused on allocation reduction and high-frequency math paths:
+  - in-place periodic mapping (`apply_periodic_inplace`);
+  - reusable capture / zone-entry buffers in `Simulation`;
+  - O(1) safe-zone active count cache (`active_total`);
+  - reduced repeated normalization overhead in `evader_step`.
+- Added `bench-speed` CLI and validation tests.
+- Reproducible benchmark artifact:
+  - `doc/bench_20260206_numba_speed_v2.json`
+  - `doc/工程性能-加速与一致性验证.md`
+- Latest speedup (small-scale, current baseline):
+  - `evader_step`: ~`4.08x`
+  - end-to-end simulation: ~`2.80x`
+- Before/after optimization comparison artifacts:
+  - before: `runs/bench_before_opt.json`
+  - after: `runs/bench_after_opt2.json`
+- Behavior check on benchmark seeds shows no count mismatches and negligible floating differences.
+
+## Active research plan (in-task criterion)
+
+- Decision rule (current): define “more critical” by **task-internal observed statistics** (primary: `chi`; auxiliary: `chi_local`, `tau_P_ar1`, `xi_fluct`) within the same task setting.
+- Immediate tasks:
+  1. Continue pressure-resolution sweep around `speed_ratio=1.3~1.5` (finer grid, e.g. step `0.05`) to locate where near-critical coupling breaks.
+  2. Upgrade pursuer strategy (predictive/cooperative) and rerun key `w_align` slices to test “forced-order penalty”.
+  3. Validate robustness in `reflecting` + obstacle settings with the same task-internal criterion.
+- Reporting principle: avoid mixing “external phase baseline” and “in-task criticality ranking” in one conclusion unless explicitly separated.

@@ -14,3 +14,18 @@ Research sandbox for swarm near-criticality in pursuit–evasion tasks (focus on
 - Generate plots + markdown report from a sweep: `uv run chasecrit report --sweep-dir runs/<sweep_dir> --out-dir doc/results_<name> --title "..."` 
 
 Outputs are written under `runs/` (each run has `config.json`, `summary.json`, and optionally `timeseries.csv` + `events.json`).
+
+## Repository layout
+
+- `src/chasecrit/`: simulation core, policies, metrics, CLI
+- `configs/`: baseline experiment configs
+- `tests/`: regression/equivalence/benchmark sanity tests
+- `runs/`: raw sweep/run artifacts (not version-controlled)
+- `doc/`: reader-facing experiment design/results and report artifacts
+- `memory/`: long-term project memory and daily logs
+
+## Paper prep entrypoint
+
+For the current manuscript-oriented summary and reproducibility checklist, see:
+
+- `doc/论文准备-结果索引与复现清单.md`
