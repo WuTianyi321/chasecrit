@@ -272,6 +272,29 @@ Raw sweeps (not version-controlled):
   - `w_align` should not be treated as a steady set-point for SOC claims;
   - preferred formulation maps dynamic alignment directly from stress (`lambda_i=f(s_i)`), with predictive-entropy fluctuation as local drive.
   - design note: `doc/SOC-v2方案-基于预测熵波动的自组织临界控制.md`.
+- SOC further research update (2026-02-07, two-stage):
+  - broad scan:
+    - root: `runs/soc_scan_20260207/` with `17` variants (including baseline), `sr={1.1,1.3}`, `seeds=30`, `steps=600`.
+    - summary: `doc/results_20260207_soc_further_research/soc_scan_summary_with_baseline_delta.csv`.
+    - finding: most SOC variants do not beat baseline on `safe`; `soc_branch_ratio_mean` is mostly above `1` (`~1.06..1.15`), indicating an over-active tendency.
+    - best broad variant: `soc_th024_cp010_rx003` with only tiny average gain (`~+0.0038` across the two pressure layers).
+  - deep save-runs validation:
+    - root: `runs/soc_scan_20260207_deep/` (`baseline`, `soc_best_gain`, `soc_branch_near1`, `soc_low_activity`; `seeds=20`, `steps=600`).
+    - extracted mechanism evidence from `soc_topples` timeseries:
+      - avalanche size/duration distributions,
+      - activity-spectrum slope `beta`.
+    - artifacts:
+      - `doc/results_20260207_soc_further_research/soc_deep_group_summary_with_delta.csv`
+      - `doc/results_20260207_soc_further_research/soc_deep_avalanche_summary.csv`
+      - `doc/results_20260207_soc_further_research/soc_deep_delta_safe_paired_ci.csv`
+    - finding:
+      - SOC mechanism signatures are present, but `safe` gains remain weak and statistically inconclusive (paired CI crosses zero for tested SOC variants).
+      - `soc_low_activity` regime yields many micro-avalanches; other variants show fewer but larger avalanches.
+  - predictive-entropy cross-check:
+    - merged summary: `doc/results_20260207_soc_further_research/soc_deep_pred_entropy_summary.csv`.
+    - SOC variants alter unpredictability structure (`Var(H_pred)`), but this does not yet produce robust performance advantage.
+  - reader-facing report:
+    - `doc/实验结果-SOC进一步研究与机制判据-20260207.md`.
 
 ## Pursuer policy status
 
