@@ -399,3 +399,9 @@ Raw sweeps (not version-controlled):
   3. Therefore, in this task family, conclusions about “criticality helps” are proxy-dependent and must be reported with explicit metric definitions.
 - Reader-facing report:
   - `doc/实验结果-追捕策略改变后临界态与逃跑收益-20260207.md`.
+
+## Sync status update (2026-02-07)
+
+- Remote sync confirmed for SOC-v3 large-scan milestone:
+  - `origin/main` includes commit `2234aa3`.
+  - This commit contains the 5600-run broad scan, 200-seed focused extension, figures, report, and memory updates.
