@@ -261,6 +261,8 @@ class Simulation:
                 world_size=self.world_size,
                 periodic=self.periodic,
                 v_p=v_p,
+                intercept_gain=cfg.pursuers.intercept_gain,
+                intercept_tmax=cfg.pursuers.intercept_tmax,
             )
         else:
             raise ValueError(f"Unsupported pursuer policy: {cfg.pursuers.policy}")

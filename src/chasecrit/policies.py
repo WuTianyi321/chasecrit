@@ -614,11 +614,15 @@ def pursuer_step_p1_intercept(
     world_size: np.ndarray,
     periodic: bool,
     v_p: float,
+    intercept_gain: float = 1.0,
+    intercept_tmax: float = 0.0,
 ) -> np.ndarray:
     """
     Predictive interception:
     For each pursuer, choose an alive evader with the minimum positive intercept time
     under constant-velocity target assumption; fall back to nearest-position chase.
+    `intercept_gain` blends between direct chase and predictive aim.
+    `intercept_tmax` limits prediction horizon (<=0 means unlimited).
     """
     if pos_p.shape[0] == 0:
         return np.zeros((0, 2), dtype=np.float64)
@@ -632,6 +636,8 @@ def pursuer_step_p1_intercept(
     out = np.zeros_like(pos_p)
     vp2 = float(v_p * v_p)
     eps = 1e-9
+    gain = float(np.clip(intercept_gain, 0.0, 1.0))
+    tmax = float(intercept_tmax)
 
     for i in range(pos_p.shape[0]):
         r = e_pos - pos_p[i]
@@ -674,14 +680,21 @@ def pursuer_step_p1_intercept(
                 t1 = (-bq[good] - sqrt_disc) / denom
                 t2 = (-bq[good] + sqrt_disc) / denom
                 tmin = np.minimum(t1, t2)
-                tmax = np.maximum(t1, t2)
-                best = np.where(tmin > 0.0, tmin, np.where(tmax > 0.0, tmax, np.inf))
+                tmax_root = np.maximum(t1, t2)
+                best = np.where(tmin > 0.0, tmin, np.where(tmax_root > 0.0, tmax_root, np.inf))
                 tq[good] = best
             t[q] = tq
 
         if np.isfinite(t).any():
             k = int(np.argmin(t))
-            aim = r[k] + v[k] * float(t[k])
+            t_eff = float(t[k])
+            if tmax > 0.0:
+                t_eff = min(t_eff, tmax)
+            aim_pred = r[k] + v[k] * t_eff
+            if gain < 1.0:
+                aim = (1.0 - gain) * r[k] + gain * aim_pred
+            else:
+                aim = aim_pred
         else:
             k = int(np.argmin(rr))
             aim = r[k]

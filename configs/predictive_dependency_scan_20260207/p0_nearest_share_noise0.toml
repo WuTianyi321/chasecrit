@@ -1,0 +1,10 @@
+[evaders]
+align_control_mode = "share"
+angle_noise = 0.0
+w_align = 0.5
+w_goal = 1.2
+w_avoid = 1.5
+w_explore = 0.4
+
+[pursuers]
+policy = "p0_nearest"

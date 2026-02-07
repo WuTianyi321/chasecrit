@@ -72,6 +72,8 @@ class PursuerConfig:
     speed_ratio: float = 1.1  # v_p = speed_ratio * v_e
     policy: PursuerPolicy = "p0_nearest"
     capture_radius: float = 1.0
+    intercept_gain: float = 1.0  # for p1_intercept: 0->nearest direction, 1->full predictive aim
+    intercept_tmax: float = 0.0  # for p1_intercept: <=0 means unlimited intercept horizon
 
 
 @dataclass(frozen=True)
