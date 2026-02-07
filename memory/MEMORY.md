@@ -229,6 +229,15 @@ Raw sweeps (not version-controlled):
     - predictor-valid runs: `3320`.
     - `sr=1.1`: `corr(safe,Var(H_pred))` weak negative; `sr=1.3`: moderate positive.
     - pooled correlation remains weak positive, suggesting regime dependence rather than universal monotonic coupling.
+  - updated policy-switch evidence (2026-02-07):
+    - matched full-grid (`w_align=0..1 step 0.05`, `seeds=120`) confirms:
+      - global `chi` remains negatively correlated with `safe` under both `p0_nearest` and `p1_intercept`;
+      - local `chi_local` is consistently positive with `safe` under `p1_intercept`.
+    - matched save-runs (`sr=1.1/1.3`, `seeds=40`) confirms:
+      - predictive-entropy variance `Var(H_pred)` has larger high-vs-low quantile safety gain under `p1_intercept` than under `p0_nearest`.
+    - interpretation update:
+      - in this project, “near-critical beneficial” is criterion-dependent and mechanism-dependent;
+      - for predictive pursuers, local fluctuation / unpredictability proxies (`chi_local`, `Var(H_pred)`) are currently more defensible than global `chi`.
 
 ## SOC controller status (2026-02-07)
 
