@@ -24,8 +24,19 @@ doc/results_20260205_fixedNp_scan_50seeds/
 
 # LaTeX build artifacts
 paper/*.aux
+paper/*.bbl
+paper/*.bcf
+paper/*.blg
 paper/*.fdb_latexmk
 paper/*.fls
+paper/*.lof
 paper/*.log
+paper/*.lot
+paper/*.nav
 paper/*.out
+paper/*.run.xml
+paper/*.snm
+paper/*.synctex.gz
+paper/*.toc
 paper/*.xdv
+paper/main.pdf
