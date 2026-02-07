@@ -532,3 +532,89 @@ def pursuer_step_p0_nearest(
     idx = np.argmin(dist2, axis=1)
     d = unit(delta[np.arange(pos_p.shape[0]), idx])
     return v_p * d
+
+
+def pursuer_step_p1_intercept(
+    *,
+    pos_p: np.ndarray,
+    pos_e: np.ndarray,
+    vel_e: np.ndarray,
+    alive_mask: np.ndarray,
+    world_size: np.ndarray,
+    periodic: bool,
+    v_p: float,
+) -> np.ndarray:
+    """
+    Predictive interception:
+    For each pursuer, choose an alive evader with the minimum positive intercept time
+    under constant-velocity target assumption; fall back to nearest-position chase.
+    """
+    if pos_p.shape[0] == 0:
+        return np.zeros((0, 2), dtype=np.float64)
+    if alive_mask.sum() == 0:
+        return np.zeros_like(pos_p)
+
+    size = world_size
+    alive_idx = np.flatnonzero(alive_mask)
+    e_pos = pos_e[alive_idx]
+    e_vel = vel_e[alive_idx]
+    out = np.zeros_like(pos_p)
+    vp2 = float(v_p * v_p)
+    eps = 1e-9
+
+    for i in range(pos_p.shape[0]):
+        r = e_pos - pos_p[i]
+        if periodic:
+            r = wrap_delta(r, size)
+        v = e_vel
+
+        rr = np.einsum("ij,ij->i", r, r)
+        rv = np.einsum("ij,ij->i", r, v)
+        vv = np.einsum("ij,ij->i", v, v)
+
+        a = vv - vp2
+        b = 2.0 * rv
+        c = rr
+        t = np.full((e_pos.shape[0],), np.inf, dtype=np.float64)
+
+        # Near-linear case.
+        lin = np.abs(a) < eps
+        if np.any(lin):
+            b_lin = b[lin]
+            valid = np.abs(b_lin) > eps
+            if np.any(valid):
+                t_lin = -c[lin][valid] / b_lin[valid]
+                t_candidates = np.full_like(b_lin, np.inf)
+                t_candidates[valid] = t_lin
+                t[lin] = np.where(t_candidates > 0.0, t_candidates, np.inf)
+
+        # Quadratic case.
+        q = ~lin
+        if np.any(q):
+            aq = a[q]
+            bq = b[q]
+            cq = c[q]
+            disc = bq * bq - 4.0 * aq * cq
+            good = disc >= 0.0
+            tq = np.full_like(aq, np.inf)
+            if np.any(good):
+                sqrt_disc = np.sqrt(disc[good])
+                denom = 2.0 * aq[good]
+                t1 = (-bq[good] - sqrt_disc) / denom
+                t2 = (-bq[good] + sqrt_disc) / denom
+                tmin = np.minimum(t1, t2)
+                tmax = np.maximum(t1, t2)
+                best = np.where(tmin > 0.0, tmin, np.where(tmax > 0.0, tmax, np.inf))
+                tq[good] = best
+            t[q] = tq
+
+        if np.isfinite(t).any():
+            k = int(np.argmin(t))
+            aim = r[k] + v[k] * float(t[k])
+        else:
+            k = int(np.argmin(rr))
+            aim = r[k]
+
+        out[i] = v_p * unit(aim[None, :])[0]
+
+    return out

@@ -11,7 +11,13 @@ from .config import ExperimentConfig, load_config
 from .geometry import apply_periodic_inplace, apply_reflecting, unit, wrap_delta_inplace
 from .io_utils import csv_write, ensure_dir, json_dump
 from .metrics import component_count, correlation_length_fluctuation, local_polarization_stats, polarization
-from .policies import EvaderDenseWorkspace, EvaderSocState, evader_step, pursuer_step_p0_nearest
+from .policies import (
+    EvaderDenseWorkspace,
+    EvaderSocState,
+    evader_step,
+    pursuer_step_p0_nearest,
+    pursuer_step_p1_intercept,
+)
 from .safe_zones import SafeZones
 
 
@@ -217,16 +223,29 @@ class Simulation:
         else:
             self.pos_e, self.vel_e = apply_reflecting(self.pos_e, self.vel_e, self.world_size)
 
-        # Pursuers (P0 for now)
+        # Pursuers
         v_p = cfg.pursuers.speed_ratio * cfg.evaders.speed
-        self.vel_p = pursuer_step_p0_nearest(
-            pos_p=self.pos_p,
-            pos_e=self.pos_e,
-            alive_mask=alive_mask,
-            world_size=self.world_size,
-            periodic=self.periodic,
-            v_p=v_p,
-        )
+        if cfg.pursuers.policy == "p0_nearest":
+            self.vel_p = pursuer_step_p0_nearest(
+                pos_p=self.pos_p,
+                pos_e=self.pos_e,
+                alive_mask=alive_mask,
+                world_size=self.world_size,
+                periodic=self.periodic,
+                v_p=v_p,
+            )
+        elif cfg.pursuers.policy == "p1_intercept":
+            self.vel_p = pursuer_step_p1_intercept(
+                pos_p=self.pos_p,
+                pos_e=self.pos_e,
+                vel_e=self.vel_e,
+                alive_mask=alive_mask,
+                world_size=self.world_size,
+                periodic=self.periodic,
+                v_p=v_p,
+            )
+        else:
+            raise ValueError(f"Unsupported pursuer policy: {cfg.pursuers.policy}")
         self.pos_p = self.pos_p + self.vel_p * dt
         if self.cfg.world.boundary == "periodic":
             apply_periodic_inplace(self.pos_p, self.world_size)

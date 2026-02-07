@@ -71,7 +71,7 @@ This proxy is informative but not definitive; task dynamics (goals, capture, ref
 - Performance work so far:
   - Dense branch uses scratch buffers (`EvaderDenseWorkspace`) to reduce per-step allocations while preserving behavior.
   - For large swarms (`alive>256`), a cell-binning fallback avoids O(N²) distance matrices.
-- Pursuer policy is currently `p0_nearest`; `p1_intercept` and cooperative allocation are planned.
+- Pursuer policies now include `p0_nearest` and `p1_intercept`; cooperative allocation remains planned.
 - Obstacles are not implemented yet (design exists in docs, but simulation currently ignores obstacles).
 
 ## Results snapshots (paths)
@@ -263,3 +263,67 @@ Raw sweeps (not version-controlled):
   - `w_align` should not be treated as a steady set-point for SOC claims;
   - preferred formulation maps dynamic alignment directly from stress (`lambda_i=f(s_i)`), with predictive-entropy fluctuation as local drive.
   - design note: `doc/SOC-v2方案-基于预测熵波动的自组织临界控制.md`.
+
+## Pursuer policy status
+
+- `p1_intercept` is now implemented and selectable via `pursuers.policy`.
+  - default remains `p0_nearest` for backward compatibility.
+  - implementation paths:
+    - `src/chasecrit/policies.py` (`pursuer_step_p1_intercept`)
+    - `src/chasecrit/sim.py` (policy dispatch).
+- coverage:
+  - `tests/test_pursuer_policies.py` validates intercept leading behavior and nearest fallback.
+
+## Latest alignment-share re-run with predictive pursuer (2026-02-07)
+
+- Experiment:
+  - config: `configs/walign_share_noise0_intercept.toml`
+  - sweep: `runs/sweep_20260207_110454_grid`
+  - settings: `speed_ratio={0.9,1.1,1.3,1.4}`, `w_align=0..1 step 0.05`, seeds `80`, steps `600`.
+  - report: `doc/results_20260207_walign_share_noise0_p1intercept_sr09111314_80seeds/`
+  - summary note: `doc/实验结果-对齐比例-预测追捕复现实验-20260207.md`.
+- Main comparison to prior `p0_nearest` share/noise0 run:
+  - best `w_align` moves lower (`0.10~0.25`);
+  - best `safe_frac` increases in all tested pressure layers;
+  - `corr(safe,chi)` is more negative across all layers;
+  - `w_align=1.0` remains strongly suboptimal.
+
+## Expanded policy-comparison scans (2026-02-07, later)
+
+- Added larger follow-up scans and explicit comparison plots.
+- Fine low-`w` comparison (`w=0..0.30`, step `0.02`, seeds `120`):
+  - `p1`: `runs/sweep_20260207_150007_grid` -> `doc/results_20260207_walign_share_noise0_p1intercept_sr09111314_120seeds_fine03/`
+  - `p0`: `runs/sweep_20260207_151352_grid` -> `doc/results_20260207_walign_share_noise0_p0nearest_sr09111314_120seeds_fine03/`
+- `p1` boundary-resolution scan (`w=0..0.60`, step `0.02`, seeds `60`):
+  - `runs/sweep_20260207_152551_grid` -> `doc/results_20260207_walign_share_noise0_p1intercept_sr09111314_60seeds_w06/`
+- Cross-policy compare artifacts:
+  - `doc/results_20260207_walign_share_fine03_policy_compare/policy_compare_summary.csv`
+  - `doc/results_20260207_walign_share_fine03_policy_compare/figs/safe_vs_w_align_policy_compare.png`
+  - `doc/results_20260207_walign_share_fine03_policy_compare/figs/delta_safe_vs_w_align_policy.png`
+  - `doc/results_20260207_walign_share_fine03_policy_compare/figs/chi_vs_w_align_policy_compare.png`
+- Updated interpretation:
+  - optimal `w_align` is pressure-dependent under predictive pursuer;
+  - low pressure (`sr≈0.9/1.1`) prefers moderate alignment (`w≈0.35~0.40`);
+  - higher pressure (`sr≈1.3/1.4`) prefers low alignment (`w≈0.10~0.12`);
+  - high alignment (`w>=0.5`) remains consistently poor.
+- Reader-facing synthesis for this batch:
+  - `doc/实验结果-对齐比例扩展实验与策略对照图-20260207.md`.
+
+## Criticality relation under pursuer-policy change (matched full-grid)
+
+- Matched full-grid comparison completed (same `w_align` grid and seeds for both policies):
+  - `p1`: `runs/sweep_20260207_155527_grid` -> `doc/results_20260207_walign_share_noise0_p1intercept_sr09111314_120seeds_full/`
+  - `p0`: `runs/sweep_20260207_161229_grid` -> `doc/results_20260207_walign_share_noise0_p0nearest_sr09111314_120seeds_full/`
+- Combined analysis outputs:
+  - `doc/results_20260207_criticality_under_policy_switch/criticality_policy_summary.csv`
+  - figures:
+    - `safe_vs_walign_policy_switch.png`
+    - `safe_vs_chi_policy_switch.png`
+    - `corr_safe_chi_and_chilocal_policy_switch.png`
+    - `near_critical_gain_chi_vs_chilocal_policy_switch.png`
+- Stable interpretation:
+  1. With global `chi` as proxy, near-critical benefit is **not** supported; `corr(safe,chi)` is negative across all speed layers and becomes more negative under `p1_intercept`.
+  2. With local `chi_local` as proxy, near-critical benefit is conditionally supported; under `p1_intercept`, `corr(safe,chi_local)` stays positive and high-vs-low quartile gain remains positive.
+  3. Therefore, in this task family, conclusions about “criticality helps” are proxy-dependent and must be reported with explicit metric definitions.
+- Reader-facing report:
+  - `doc/实验结果-追捕策略改变后临界态与逃跑收益-20260207.md`.
