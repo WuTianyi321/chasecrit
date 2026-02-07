@@ -141,14 +141,27 @@ class EvaderSocState:
     align_share: np.ndarray
     last_toppled: np.ndarray
     last_topple_count: int
+    pred_prev_bin: np.ndarray
+    pred_entropy_ema: np.ndarray
+    pred_trans_counts: np.ndarray
+    last_pred_entropy_mean: float
+    last_pred_entropy_var: float
+    last_entropy_fluct_mean: float
 
     @staticmethod
-    def create(n_evaders: int, init_align_share: float) -> "EvaderSocState":
+    def create(n_evaders: int, init_align_share: float, heading_bins: int = 36) -> "EvaderSocState":
+        bins = max(8, int(heading_bins))
         return EvaderSocState(
             stress=np.zeros((n_evaders,), dtype=np.float64),
             align_share=np.full((n_evaders,), float(init_align_share), dtype=np.float64),
             last_toppled=np.zeros((n_evaders,), dtype=bool),
             last_topple_count=0,
+            pred_prev_bin=np.full((n_evaders,), -1, dtype=np.int32),
+            pred_entropy_ema=np.zeros((n_evaders,), dtype=np.float64),
+            pred_trans_counts=np.zeros((n_evaders, bins, bins), dtype=np.float64),
+            last_pred_entropy_mean=0.0,
+            last_pred_entropy_var=0.0,
+            last_entropy_fluct_mean=0.0,
         )
 
 
@@ -189,6 +202,14 @@ def evader_step(
     soc_align_min: float = 0.05,
     soc_align_max: float = 0.95,
     soc_topple_noise: float = 0.2,
+    soc_mode: Literal["v1", "v3"] = "v1",
+    soc_relax_to_w_align: bool = True,
+    soc_stress_to_align_gain: float = 6.0,
+    soc_entropy_gain: float = 0.0,
+    soc_entropy_ema_alpha: float = 0.1,
+    soc_heading_bins: int = 36,
+    soc_heading_smoothing: float = 0.5,
+    soc_heading_decay: float = 0.01,
     dense_ws: EvaderDenseWorkspace | None = None,
     prefer_numba: bool | None = None,
 ) -> np.ndarray:
@@ -453,7 +474,44 @@ def evader_step(
 
         stress = soc_state.stress[alive_idx]
         stress *= max(0.0, 1.0 - soc_stress_decay)
-        stress += soc_surprise_gain * surprise + soc_threat_gain * threat
+        entropy_fluct = np.zeros((M,), dtype=np.float64)
+        pred_entropy = np.zeros((M,), dtype=np.float64)
+        mode = str(soc_mode).lower()
+        if mode == "v3":
+            bins = max(8, int(soc_heading_bins))
+            if soc_state.pred_trans_counts.shape[1] != bins:
+                raise ValueError("soc_state heading bins mismatch; recreate state with matching soc_heading_bins")
+            smoothing = max(1e-6, float(soc_heading_smoothing))
+            ema_alpha = float(np.clip(soc_entropy_ema_alpha, 0.0, 1.0))
+            decay = float(np.clip(soc_heading_decay, 0.0, 1.0))
+            inv_log_bins = 1.0 / max(np.log2(float(bins)), 1e-6)
+            angle = (np.degrees(np.arctan2(d[:, 1], d[:, 0])) + 360.0) % 360.0
+            curr_bin = np.mod(np.around((angle / 360.0) * float(bins)).astype(np.int64), bins).astype(np.int32)
+            prev_bin = soc_state.pred_prev_bin[alive_idx]
+
+            for local_idx, global_idx in enumerate(alive_idx):
+                pb = int(prev_bin[local_idx])
+                if pb >= 0:
+                    row = soc_state.pred_trans_counts[global_idx, pb, :]
+                    den = float(np.sum(row))
+                    probs = (row + smoothing) / (den + smoothing * float(bins))
+                    h = float(-np.sum(probs * np.log2(probs)))
+                    pred_entropy[local_idx] = float(h * inv_log_bins)
+                else:
+                    pred_entropy[local_idx] = 1.0
+
+                prev_ema = float(soc_state.pred_entropy_ema[global_idx])
+                entropy_fluct[local_idx] = abs(pred_entropy[local_idx] - prev_ema)
+                soc_state.pred_entropy_ema[global_idx] = ema_alpha * pred_entropy[local_idx] + (1.0 - ema_alpha) * prev_ema
+
+                if pb >= 0:
+                    row_update = soc_state.pred_trans_counts[global_idx, pb, :]
+                    if decay > 0.0:
+                        row_update *= (1.0 - decay)
+                    row_update[int(curr_bin[local_idx])] += 1.0
+                soc_state.pred_prev_bin[global_idx] = int(curr_bin[local_idx])
+
+        stress += soc_surprise_gain * surprise + soc_threat_gain * threat + soc_entropy_gain * entropy_fluct
 
         toppled = stress > soc_threshold
         if mask_n_dense is not None and soc_neighbor_coupling > 0.0 and np.any(toppled):
@@ -464,14 +522,21 @@ def evader_step(
 
         if np.any(toppled):
             stress[toppled] = np.maximum(0.0, stress[toppled] - soc_release)
-            align_share[toppled] -= soc_align_drop
-            align_share[:] = np.clip(align_share, soc_align_min, soc_align_max)
             if soc_topple_noise > 0.0:
                 angles = rng.uniform(-soc_topple_noise, soc_topple_noise, size=(int(np.count_nonzero(toppled)),))
                 d[toppled] = unit(rotate(d[toppled], angles))
 
-        # Slow relaxation back to base alignment share.
-        align_share += soc_align_relax * (float(np.clip(w_align, 0.0, 1.0)) - align_share)
+        if mode == "v3":
+            gain = max(0.0, float(soc_stress_to_align_gain))
+            base_share = soc_align_min + (soc_align_max - soc_align_min) / (1.0 + np.exp(gain * (stress - soc_threshold)))
+            align_share[:] = np.clip(base_share, soc_align_min, soc_align_max)
+            if np.any(toppled) and soc_align_drop > 0.0:
+                align_share[toppled] -= soc_align_drop
+        else:
+            if np.any(toppled):
+                align_share[toppled] -= soc_align_drop
+            if soc_relax_to_w_align:
+                align_share += soc_align_relax * (float(np.clip(w_align, 0.0, 1.0)) - align_share)
         align_share[:] = np.clip(align_share, soc_align_min, soc_align_max)
         soc_state.stress[alive_idx] = stress
         soc_state.align_share[alive_idx] = align_share
@@ -479,10 +544,16 @@ def evader_step(
         soc_state.last_toppled[:] = False
         soc_state.last_toppled[alive_idx] = toppled
         soc_state.last_topple_count = int(np.count_nonzero(toppled))
+        soc_state.last_pred_entropy_mean = float(np.mean(pred_entropy)) if pred_entropy.size else 0.0
+        soc_state.last_pred_entropy_var = float(np.var(pred_entropy)) if pred_entropy.size else 0.0
+        soc_state.last_entropy_fluct_mean = float(np.mean(entropy_fluct)) if entropy_fluct.size else 0.0
     else:
         if soc_state is not None:
             soc_state.last_toppled[:] = False
             soc_state.last_topple_count = 0
+            soc_state.last_pred_entropy_mean = 0.0
+            soc_state.last_pred_entropy_var = 0.0
+            soc_state.last_entropy_fluct_mean = 0.0
         if align_control_mode == "share":
             align_share = float(np.clip(w_align, 0.0, 1.0))
             d = align_share * d_align + (1.0 - align_share) * d_non_align

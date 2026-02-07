@@ -131,3 +131,65 @@ def test_soc_parameter_changes_do_not_affect_run_when_disabled() -> None:
     assert s_new["steps_recorded"] == s_ref["steps_recorded"]
     assert s_new["safe_frac"] == pytest.approx(s_ref["safe_frac"], abs=1e-12)
     assert s_new["chi"] == pytest.approx(s_ref["chi"], abs=1e-12)
+
+
+def test_soc_v3_ignores_w_align_relaxation_when_state_fixed() -> None:
+    kwargs_a = _step_inputs()
+    kwargs_b = _step_inputs()
+    kwargs_a["w_align"] = 0.1
+    kwargs_b["w_align"] = 0.9
+    soc_state_a = EvaderSocState.create(n_evaders=4, init_align_share=0.6, heading_bins=24)
+    soc_state_b = EvaderSocState.create(n_evaders=4, init_align_share=0.6, heading_bins=24)
+
+    v_a = evader_step(
+        rng=np.random.default_rng(7),
+        soc_enabled=True,
+        soc_state=soc_state_a,
+        soc_mode="v3",
+        soc_relax_to_w_align=False,
+        soc_heading_bins=24,
+        **kwargs_a,
+    )
+    v_b = evader_step(
+        rng=np.random.default_rng(7),
+        soc_enabled=True,
+        soc_state=soc_state_b,
+        soc_mode="v3",
+        soc_relax_to_w_align=False,
+        soc_heading_bins=24,
+        **kwargs_b,
+    )
+
+    np.testing.assert_allclose(v_a, v_b, atol=1e-12, rtol=0.0)
+
+
+def test_soc_v3_entropy_drive_updates_entropy_statistics() -> None:
+    kwargs = _step_inputs()
+    soc_state = EvaderSocState.create(n_evaders=4, init_align_share=0.6, heading_bins=24)
+
+    _ = evader_step(
+        rng=np.random.default_rng(9),
+        soc_enabled=True,
+        soc_state=soc_state,
+        soc_mode="v3",
+        soc_entropy_gain=1.0,
+        soc_heading_bins=24,
+        soc_heading_decay=0.02,
+        soc_entropy_ema_alpha=0.2,
+        **kwargs,
+    )
+    _ = evader_step(
+        rng=np.random.default_rng(10),
+        soc_enabled=True,
+        soc_state=soc_state,
+        soc_mode="v3",
+        soc_entropy_gain=1.0,
+        soc_heading_bins=24,
+        soc_heading_decay=0.02,
+        soc_entropy_ema_alpha=0.2,
+        **kwargs,
+    )
+
+    assert soc_state.last_pred_entropy_mean >= 0.0
+    assert soc_state.last_pred_entropy_var >= 0.0
+    assert soc_state.last_entropy_fluct_mean >= 0.0

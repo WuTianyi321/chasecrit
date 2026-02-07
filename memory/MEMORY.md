@@ -295,6 +295,28 @@ Raw sweeps (not version-controlled):
     - SOC variants alter unpredictability structure (`Var(H_pred)`), but this does not yet produce robust performance advantage.
   - reader-facing report:
     - `doc/实验结果-SOC进一步研究与机制判据-20260207.md`.
+- SOC-v3 paper-aligned attempt (2026-02-07, follow-up):
+  - motivation:
+    - explicitly align with cited paper `1-s2.0-S0378437125007290-main.pdf` (single-agent predictive-entropy variance as primary criticality signal).
+  - implementation:
+    - added SOC-v3 controls in config and policy:
+      - `soc_mode=v3` path removes mandatory relaxation to fixed `w_align`,
+      - uses stress-to-alignment mapping `lambda_i=f(stress_i)`,
+      - adds online entropy-fluctuation drive `|H_i-EMA(H_i)|`.
+    - added SOC entropy diagnostics in simulation summary:
+      - `soc_pred_entropy_mean`, `soc_pred_entropy_var`, `soc_entropy_fluct_mean`.
+    - tests expanded; current status: `16 passed`, `pyright` clean.
+  - experiments:
+    - broad scan root: `runs/soc_v3_scan_20260207/` (`baseline`, `soc_v3_no_entropy`, `soc_v3_entropy_mid`, `soc_v3_entropy_high`).
+    - deep save-runs root: `runs/soc_v3_scan_20260207_deep/` (baseline + entropy mid/high).
+    - analysis root: `doc/results_20260207_soc_v3_paper_aligned/`.
+  - key findings:
+    - baseline still best on mean `safe` across `sr=1.1/1.3`;
+    - entropy-driven v3 increases `Var(H_pred)` clearly but does not provide robust performance gain;
+    - weak positive sign appears at `sr=1.1` (entropy-mid), while `sr=1.3` remains negative;
+    - benchmark comparison (circular variance of angle increments) remains less sensitive than `Var(H_pred)` in these runs.
+  - reader-facing report:
+    - `doc/实验结果-SOCv3论文思路对齐尝试-20260207.md`.
 
 ## Pursuer policy status
 

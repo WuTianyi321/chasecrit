@@ -77,10 +77,14 @@ class Simulation:
 
         self._soc_state: EvaderSocState | None = None
         self._soc_topple_sizes: list[int] = []
+        self._soc_pred_entropy_means: list[float] = []
+        self._soc_pred_entropy_vars: list[float] = []
+        self._soc_entropy_fluct_means: list[float] = []
         if bool(cfg.evaders.soc_enabled):
             self._soc_state = EvaderSocState.create(
                 n_evaders=int(cfg.evaders.count),
                 init_align_share=float(np.clip(cfg.evaders.w_align, 0.0, 1.0)),
+                heading_bins=int(cfg.evaders.soc_heading_bins),
             )
 
     def _spawn_zones(self, t: int) -> None:
@@ -161,6 +165,9 @@ class Simulation:
                     "probe_active": int(probe_active),
                     "probe_heading_deg": probe_heading_deg,
                     "soc_topples": int(self._soc_state.last_topple_count) if self._soc_state is not None else 0,
+                    "soc_pred_entropy_mean": float(self._soc_state.last_pred_entropy_mean) if self._soc_state is not None else 0.0,
+                    "soc_pred_entropy_var": float(self._soc_state.last_pred_entropy_var) if self._soc_state is not None else 0.0,
+                    "soc_entropy_fluct_mean": float(self._soc_state.last_entropy_fluct_mean) if self._soc_state is not None else 0.0,
                 }
             )
 
@@ -211,11 +218,22 @@ class Simulation:
             soc_align_min=cfg.evaders.soc_align_min,
             soc_align_max=cfg.evaders.soc_align_max,
             soc_topple_noise=cfg.evaders.soc_topple_noise,
+            soc_mode=cfg.evaders.soc_mode,
+            soc_relax_to_w_align=cfg.evaders.soc_relax_to_w_align,
+            soc_stress_to_align_gain=cfg.evaders.soc_stress_to_align_gain,
+            soc_entropy_gain=cfg.evaders.soc_entropy_gain,
+            soc_entropy_ema_alpha=cfg.evaders.soc_entropy_ema_alpha,
+            soc_heading_bins=cfg.evaders.soc_heading_bins,
+            soc_heading_smoothing=cfg.evaders.soc_heading_smoothing,
+            soc_heading_decay=cfg.evaders.soc_heading_decay,
             dense_ws=self._evader_dense_ws,
             prefer_numba=self.prefer_numba,
         )
         if self._soc_state is not None:
             self._soc_topple_sizes.append(int(self._soc_state.last_topple_count))
+            self._soc_pred_entropy_means.append(float(self._soc_state.last_pred_entropy_mean))
+            self._soc_pred_entropy_vars.append(float(self._soc_state.last_pred_entropy_var))
+            self._soc_entropy_fluct_means.append(float(self._soc_state.last_entropy_fluct_mean))
         self.pos_e = self.pos_e + self.vel_e * dt
 
         if self.cfg.world.boundary == "periodic":
@@ -377,6 +395,9 @@ class Simulation:
         )
         topple_arr = np.asarray(self._soc_topple_sizes, dtype=np.float64)
         topple_pos = topple_arr[topple_arr > 0.0]
+        soc_pred_entropy_mean_arr = np.asarray(self._soc_pred_entropy_means, dtype=np.float64)
+        soc_pred_entropy_var_arr = np.asarray(self._soc_pred_entropy_vars, dtype=np.float64)
+        soc_entropy_fluct_arr = np.asarray(self._soc_entropy_fluct_means, dtype=np.float64)
         branch_ratio = 0.0
         if topple_pos.size >= 2:
             prev = topple_pos[:-1]
@@ -406,6 +427,9 @@ class Simulation:
             "soc_topple_size_mean": float(np.mean(topple_pos)) if topple_pos.size else 0.0,
             "soc_topple_size_var": float(np.var(topple_pos)) if topple_pos.size else 0.0,
             "soc_branch_ratio": float(branch_ratio),
+            "soc_pred_entropy_mean": float(np.mean(soc_pred_entropy_mean_arr)) if soc_pred_entropy_mean_arr.size else 0.0,
+            "soc_pred_entropy_var": float(np.mean(soc_pred_entropy_var_arr)) if soc_pred_entropy_var_arr.size else 0.0,
+            "soc_entropy_fluct_mean": float(np.mean(soc_entropy_fluct_arr)) if soc_entropy_fluct_arr.size else 0.0,
         }
 
     def save(self, run_dir: Path) -> None:
