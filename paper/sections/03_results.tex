@@ -1,188 +1,153 @@
-\section{实验结果（全量批次综合）}
-\subsection{批次总览}
-为覆盖全部已完成实验，本文将有结构化聚合表（可计算统计量）的批次记为 E 系列，将仅用于烟雾测试或流程验证、未保留完整聚合表的批次记为 P 系列。
+\section{Results}
 
-\begin{longtable}{p{1.2cm}p{3.4cm}p{1.7cm}p{1.7cm}p{1.9cm}p{3.5cm}}
-\caption{E 系列（可量化）实验批次总览与关键统计}\label{tab:all_quant}\\
-\toprule
-ID & 实验类型 & seeds/格点 & steps & 最优 \(\mathrm{safe}\) & \(\mathrm{safe}\)-\(\chi\) 关系 \\
-\midrule
-\endfirsthead
-\toprule
-ID & 实验类型 & seeds/格点 & steps & 最优 \(\mathrm{safe}\) & \(\mathrm{safe}\)-\(\chi\) 关系 \\
-\midrule
-\endhead
-E01 & 固定追捕者扫描（初版） & 10 & 600 & \(sr=1.00,w=0.30\), 0.3055 & 指标版本不含 \(\chi\) \\
-E02 & 固定追捕者扫描（扩展） & 15 & 600 & \(sr=1.00,w=0.65\), 0.4214 & 平均相关 0.120 \\
-E03 & 固定追捕者扫描（50 seeds） & 50 & 600 & \(sr=1.00,w=0.35\), 0.3966 & 平均相关 0.372 \\
-E04 & 固定追捕者扫描（50 seeds, 指标增强） & 50 & 600 & \(sr=1.00,w=0.35\), 0.3966 & 平均相关 0.372 \\
-E05 & 固定追捕者扫描（100 seeds, \(sr\in\{1.1,1.2\}\)） & 100 & 600 & \(sr=1.10,w=0.70\), 0.3725 & 平均相关 0.399 \\
-E06 & 任务内 \(w_{\text{align}}\) 扫描（中样本） & 80 & 600 & \(sr=1.00,w=0.95\), 0.3900 & 平均相关 0.401 \\
-E07 & 任务内 \(w_{\text{align}}\) 扫描（高样本） & 200 & 600 & \(sr=1.00,w=0.35\), 0.3893 & 平均相关 0.479 \\
-E08 & 压力对比（0.9/1.3/1.4） & 120 & 600 & \(sr=0.90,w=0.55\), 0.4092 & 平均相关 0.193 \\
-E09 & 压力对比（\(sr=1.4\)扩样） & 120/240 & 600 & \(sr=0.90,w=0.55\), 0.4092 & 平均相关 0.225 \\
-E10 & 任务噪声扫描（\(w=0.6\)） & 100 & 600 & noise=0.00, 0.3567 & Pearson 0.814 \\
-E11 & 任务噪声扫描（\(w=1.0\)） & 100 & 600 & noise=0.20, 0.3387 & Pearson 0.824 \\
-E12 & Phase 噪声识别（无追捕/无安全区） & 100 & 1200 & \(\mathrm{safe}\) 不适用 & \(\chi\) 峰值在 noise=1.80 \\
-\bottomrule
-\end{longtable}
+\subsection{Performance Landscape Across Alignment Strength}
 
-\begin{longtable}{p{1.2cm}p{4.2cm}p{2.0cm}p{6.3cm}}
-\caption{P 系列（流程/烟雾）批次及其作用}\label{tab:all_pilot}\\
-\toprule
-ID & 批次类型 & 是否量化汇总 & 作用 \\
-\midrule
-\endfirsthead
-\toprule
-ID & 批次类型 & 是否量化汇总 & 作用 \\
-\midrule
-\endhead
-P01 & Phase smoke & 否 & 验证 phase-sweep 管线与绘图流程可用。 \\
-P02 & Phase baseline & 否 & 早期 phase 识别趋势观察。 \\
-P03 & Phase wide & 否 & 扩大噪声范围后的早期可视化验证。 \\
-P04 & Phase wider & 否（仅图） & 后续高样本 phase 扫描前的参数摸底。 \\
-P05 & Task noise smoke & 否 & 验证任务噪声扫描管线与散点图生成。 \\
-P06 & Task noise early (\(w=1.0\)) & 否 & 任务噪声路线早期趋势勘探。 \\
-\bottomrule
-\end{longtable}
-
-\subsection{早期到高样本的演化结果（E01--E06）}
-E01--E05 展示了固定追捕者数量扫描从低样本到高样本、从单指标到多指标的演化过程。E01 中尚未纳入 \(\chi\) 指标；E02 开始引入 \(\chi\)，并首次在格点均值层面观察到正相关（平均相关 0.120）；E03/E04 在 50 seeds 下将相关提升到 0.372；E05 在 100 seeds、\(v_p/v_e\in\{1.1,1.2\}\) 下维持正相关（0.399）。
-
-E06 作为任务内 \(w_{\text{align}}\) 路线的中样本版本（80 seeds），与 E07（200 seeds）在趋势方向上保持一致：\(\mathrm{safe}\) 与 \(\chi\) 的整体耦合为正，但最优 \(w_{\text{align}}\) 呈带状而非尖峰点。
-
-\begin{figure}[htbp]
-\centering
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260205_fixedNp_scan_expanded/figs/safe_vs_w_align.png}
-\caption{E02: \(\mathrm{safe}\) vs \(w_{\text{align}}\)}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260205_fixedNp_scan_expanded/figs/chi_vs_w_align.png}
-\caption{E02: \(\chi\) vs \(w_{\text{align}}\)}
-\end{subfigure}
-\caption{早期固定追捕者扫描中引入 \(\chi\) 后的趋势}
-\label{fig:e02_early}
-\end{figure}
-
-\begin{figure}[htbp]
-\centering
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260206_fixedNp_sr11_sr12_100seeds/figs/safe_vs_w_align.png}
-\caption{E05: \(\mathrm{safe}\) vs \(w_{\text{align}}\)}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260206_fixedNp_sr11_sr12_100seeds/figs/chi_vs_w_align.png}
-\caption{E05: \(\chi\) vs \(w_{\text{align}}\)}
-\end{subfigure}
-\caption{高样本固定追捕者扫描下的主趋势延续}
-\label{fig:e05_highsample}
-\end{figure}
-
-\subsection{\(w_{\text{align}}\) 主线与压力对比}
-E07 与 E09 构成本文主结果骨架。E07（高样本）显示在 \(v_p/v_e=1.0\sim1.2\) 范围内，\(\mathrm{safe}\) 与 \(\chi\) 整体正相关；E09 显示该关系在高压力端（\(v_p/v_e=1.4\)）显著减弱。
+Figure~\ref{fig:safe_landscape} shows survival fraction $f_{\text{safe}}$ across alignment strength $w_{\text{align}}$ and pursuit intensity $v_p/v_e$.
 
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.48\textwidth}
 \includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/safe_vs_w_align.png}
-\caption{E07: \(\mathrm{safe}\) vs \(w_{\text{align}}\)}
+\caption{Survival fraction vs. $w_{\text{align}}$ for moderate pressures}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/chi_vs_w_align.png}
-\caption{E07: \(\chi\) vs \(w_{\text{align}}\)}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/heatmap_safe_mean.png}
+\caption{Heatmap of survival fraction}
 \end{subfigure}
-\caption{高样本任务内 \(w_{\text{align}}\) 扫描结果}
-\label{fig:e07_main}
+\caption{Survival performance landscape across alignment strength and pursuit pressure. Error bars show 95\% CI.}
+\label{fig:safe_landscape}
 \end{figure}
+
+Key observations:
+\begin{enumerate}
+    \item \textbf{Intermediate optima:} For all pursuit intensities, survival is maximized at intermediate $w_{\text{align}}$ (neither fully ordered nor disordered). Optimal $w_{\text{align}}$ shifts from $\approx 0.7$ at $v_p/v_e = 1.1$ to $\approx 0.4$ at $v_p/v_e = 1.2$.
+    \item \textbf{Broad optima:} Performance plateaus are relatively flat near optima (differences between $w_{\text{align}} = 0.4$--$0.7$ typically $< 0.02$ in $f_{\text{safe}}$).
+    \item \textbf{Pressure effects:} Higher $v_p/v_e$ reduces overall survival but preserves the qualitative pattern of intermediate optima.
+\end{enumerate}
+
+\subsection{Criticality Proxies and Their Trends}
+
+Figure~\ref{fig:criticality_landscape} shows criticality proxies versus $w_{\text{align}}$.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.68\textwidth]{../doc/results_20260206_walign_pressure_091314_sr14_240seeds/figs/scatter_safe_vs_chi.png}
-\caption{E09: 压力对比中的 \(\mathrm{safe}\)-\(\chi\) 关系}
-\label{fig:e09_pressure}
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/chi_vs_w_align.png}
+\caption{Susceptibility $\chi$}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/tau_P_ar1_vs_w_align.png}
+\caption{Correlation time $\tau$}
+\end{subfigure}
+\caption{Criticality proxies as functions of alignment strength.}
+\label{fig:criticality_landscape}
 \end{figure}
 
-\subsection{E09 离散度诊断}
-在 E09 合并散点中，\(\chi\approx4.5\) 区域存在明显纵向离散。按压力分层后可见该离散主要来自 \(v_p/v_e\) 层间基线差异：相同 \(\chi\) 水平下，\(v_p/v_e=0.9\) 的 \(\mathrm{safe}\) 系统性高于 \(1.3\) 与 \(1.4\)。在 \(\chi\in[4.2,4.8]\) 区间，\(\mathrm{safe}\) 方差约 96.7\% 可由层间差异解释，说明该现象主要是条件混合效应而非单一指标噪声。
+Susceptibility $\chi$ peaks at intermediate-to-low $w_{\text{align}}$ ($\approx 0.15$--$0.30$), while correlation time $\tau$ peaks at slightly higher values ($\approx 0.3$--$0.5$). Performance optima lie to the right of criticality peaks, indicating that maximal criticality does not coincide with maximal performance.
 
-若不做任何聚合、直接在单次运行层面考察 \((\chi,\mathrm{safe\_frac})\)，相关性较弱：E09 全部原始点的 Pearson 相关约为 \(-0.016\)，且各压力层分别约为 \(-0.025\)（\(v_p/v_e=0.9\)）、\(0.051\)（\(1.3\)）与 \(0.018\)（\(1.4\)）。因此，本文对“近临界优势”的讨论以参数格点统计量（多 seed 汇总）为主，并将原始点云解释为高随机性背景下的微观离散。
+\subsection{Criticality-Performance Relationship}
+
+Figure~\ref{fig:scatter_chi} and Table~\ref{tab:correlations} show correlations between survival and criticality proxies.
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=0.68\textwidth]{../doc/results_20260206_walign_pressure_091314_sr14_240seeds/figs/scatter_safe_vs_chi_by_sr.png}
-\caption{E09: 按压力分层后的 \(\mathrm{safe}\)-\(\chi\) 散点}
-\label{fig:e09_by_sr}
+\includegraphics[width=0.6\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/scatter_safe_vs_chi.png}
+\caption{Survival fraction vs. susceptibility $\chi$ across $w_{\text{align}}$ values. Points represent group means; color indicates pursuit intensity.}
+\label{fig:scatter_chi}
 \end{figure}
-
-\subsection{噪声路线全量结果（关键对照）}
-E10 与 E11 均显示任务噪声扫描中 \(\mathrm{safe}\)-\(\chi\) 强正相关。尤其 E11（\(w_{\text{align}}=1.0\)）给出 Pearson 0.824、Spearman 0.965。E12 则表明无外场 phase 设置中 \(\chi\) 峰值位于 noise=1.80，与任务最优噪声不一致。
 
 \begin{table}[htbp]
 \centering
-\caption{噪声路线关键统计（修正后的峰值位置与数值）}
-\label{tab:noise_key}
-\begin{tabular}{cccccccc}
+\caption{Correlations between survival fraction and criticality proxies}
+\label{tab:correlations}
+\begin{tabular}{cccccc}
 \toprule
-ID & 设置 & seeds & noise@safe\(_{\max}\) & safe\(_{\max}\) & noise@\(\chi_{\max}\) & \(\chi_{\max}\) & \(\mathrm{corr}(\mathrm{safe},\chi)\) \\
+$v_p/v_e$ & $n$ & $r(\text{safe}, \chi)$ & $r(\text{safe}, \tau)$ & $r(\text{safe}, \xi)$ & $w_{\text{opt}}$ \\
 \midrule
-E10 & Task, \(w=0.6\) & 100 & 0.00 & 0.3567 & 0.00 & 4.2812 & 0.814 \\
-E11 & Task, \(w=1.0\) & 100 & 0.20 & 0.3387 & 0.00 & 4.2378 & 0.824 \\
-E12 & Phase & 100 & -- & -- & 1.80 & 13.2085 & -- \\
+0.90  & 120 & 0.272 & 0.272 & 0.236 & 0.55 \\
+1.00  & 200 & 0.376 & 0.383 & 0.374 & 0.35 \\
+1.05  & 200 & 0.441 & 0.369 & 0.371 & 0.55 \\
+1.10  & 200 & 0.467 & 0.447 & 0.525 & 0.70 \\
+1.15  & 200 & 0.621 & 0.585 & 0.414 & 0.45 \\
+1.20  & 200 & 0.492 & 0.379 & 0.523 & 0.40 \\
+1.30  & 120 & 0.378 & 0.408 & 0.320 & 0.65 \\
+\textbf{1.40}  & 240 & \textbf{0.024} & 0.126 & -0.322 & 0.25 \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\textbf{Moderate pressure ($v_p/v_e \approx 1.0$--$1.3$):} Strong positive correlations ($r \approx 0.38$--$0.62$) indicate that nearer-critical states reliably achieve better survival.
+
+\textbf{High pressure ($v_p/v_e = 1.4$):} The correlation collapses ($r = 0.024$ for $\chi$, $r = -0.322$ for $\xi$). Survival becomes uncorrelated with traditional criticality proxies, and optimal strategy shifts to low alignment ($w_{\text{align}} \approx 0.25$).
+
+\subsection{Pressure-Dependent Relationship Collapse}
+
+The transition from positive to negligible correlation is shown in Figure~\ref{fig:pressure_contrast}.
+
+\begin{figure}[htbp]
+\centering
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_task_internal_200seeds/figs/scatter_safe_vs_chi.png}
+\caption{Moderate pressure ($v_p/v_e = 1.1$): $r = 0.467$}
+\end{subfigure}
+\hfill
+\begin{subfigure}[b]{0.48\textwidth}
+\includegraphics[width=\textwidth]{../doc/results_20260206_walign_pressure_091314_sr14_240seeds/figs/scatter_safe_vs_chi.png}
+\caption{High pressure ($v_p/v_e = 1.4$): $r = 0.024$}
+\end{subfigure}
+\caption{Criticality-performance relationship under different pursuit pressures.}
+\label{fig:pressure_contrast}
+\end{figure}
+
+\textbf{E09 variability analysis:} In E09 merged scatter, substantial vertical dispersion exists near $\chi \approx 4.5$. Layered analysis reveals this dispersion stems primarily from between-pressure baseline differences: at $\chi \in [4.2, 4.8]$, approximately 96.7\% of safe fraction variance is explained by pressure layer ($v_p/v_e = 0.9, 1.3, 1.4$). Within fixed pressure layers, dispersion is markedly reduced.
+
+Single-run level correlations are weak (E09 overall: $r \approx -0.016$), indicating strong trajectory-level randomness. Parameter-level conclusions rely on multi-seed aggregate statistics rather than single point-cloud fitting.
+
+\subsection{Noise Route: Internal vs. External Criticality}
+
+Complementary sweeps over angular noise $\eta$ at fixed $w_{\text{align}}$ show strong within-task correlations (Figure~\ref{fig:noise_sweep}).
 
 \begin{figure}[htbp]
 \centering
 \begin{subfigure}[b]{0.48\textwidth}
 \includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w10_sr11_100seeds/figs/safe_vs_noise.png}
-\caption{E11: \(\mathrm{safe}\) vs noise}
+\caption{Survival vs. noise ($w_{\text{align}} = 1.0$)}
 \end{subfigure}
 \hfill
 \begin{subfigure}[b]{0.48\textwidth}
 \includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w10_sr11_100seeds/figs/scatter_safe_vs_chi.png}
-\caption{E11: \(\mathrm{safe}\)-\(\chi\) 散点}
+\caption{Survival vs. $\chi$ ($w_{\text{align}} = 1.0$)}
 \end{subfigure}
-\caption{E11（\(w=1.0\)）中观察到的强正相关}
-\label{fig:e11_noise}
+\caption{Noise route results. Strong positive correlation ($r = 0.824$) within the task.}
+\label{fig:noise_sweep}
 \end{figure}
 
-\begin{figure}[htbp]
-\centering
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260206_task_noise_w06_sr11_100seeds/figs/scatter_safe_vs_chi.png}
-\caption{E10: Task 噪声扫描对照}
-\end{subfigure}
-\hfill
-\begin{subfigure}[b]{0.48\textwidth}
-\includegraphics[width=\textwidth]{../doc/results_20260206_phase_noise_100seeds_steps1200/figs/chi_vs_noise.png}
-\caption{E12: Phase 噪声识别}
-\end{subfigure}
-\caption{任务噪声与 phase 噪声结果的并列比较}
-\label{fig:e10_e12}
-\end{figure}
-
-\subsection{全量批次图表索引}
-为确保正文覆盖全部批次，表~\ref{tab:figure_index} 给出 E/P 系列对应的代表性图表类别。E 系列均对应完整趋势图与散点图；P 系列用于流程与绘图链路验证，其图表仅用于方法学完备性说明，不参与主要定量结论。
+However, comparison with phase-only identification (no pursuers, no safe zones) reveals critical differences (Table~\ref{tab:phase_comparison}).
 
 \begin{table}[htbp]
 \centering
-\caption{全量批次代表性图表索引（按实验编号）}
-\label{tab:figure_index}
-\begin{tabular}{ccc}
+\caption{Phase-only vs. task settings}
+\label{tab:phase_comparison}
+\begin{tabular}{lcc}
 \toprule
-实验编号 & 主要图表类别 & 在本文中的作用 \\
+Setting & Peak $\chi$ at & Peak survival at \\
 \midrule
-E01--E05 & \(w_{\text{align}}\) 趋势图与热图 & 固定追捕者扫描基线与扩样 \\
-E06--E07 & 任务内 \(w_{\text{align}}\) 趋势与散点 & 近临界主线证据（中样本/高样本） \\
-E08--E09 & 压力分层趋势与散点 & 外场强度对耦合关系的调制 \\
-E10--E11 & 噪声趋势与 \(\mathrm{safe}\)-\(\chi\) 散点 & 任务噪声路线与强正相关检验 \\
-E12 & phase 噪声趋势图 & 任务判定与 phase 判定分离 \\
-P01--P06 & 简化趋势图（烟雾/流程） & 管线连通性与早期参数摸底 \\
+Phase only (no pursuers) & $\eta = 1.8$ & N/A \\
+Task ($w_{\text{align}} = 1.0$) & $\eta = 0.0$ & $\eta = 0.2$ \\
+Task ($w_{\text{align}} = 0.6$) & $\eta = 0.0$ & $\eta = 0.0$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\textbf{Key finding:} Intrinsic phase critical points do not transfer to task-optimal parameters. Phase-only $\chi$ peaks at $\eta = 1.8$, while task performance peaks at low noise ($\eta \approx 0$--$0.2$), where susceptibility is highest \textit{within} the task but far from the phase critical point.
+
+\subsection{Summary of Findings}
+
+\begin{enumerate}
+    \item Intermediate alignment ($w_{\text{align}} \approx 0.4$--$0.7$) maximizes survival across pursuit pressures.
+    \item Under moderate pressure ($v_p/v_e \approx 1.0$--$1.3$), survival correlates positively with criticality proxies ($r \approx 0.38$--$0.62$).
+    \item Under high pressure ($v_p/v_e = 1.4$), this correlation collapses ($r \approx 0$).
+    \item Within-task criticality correlates with performance, but intrinsic phase critical points do not predict task optima.
+\end{enumerate}

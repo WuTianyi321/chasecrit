@@ -1,3 +1,28 @@
-\section*{复现说明}
-本文所有结论均来自统一代码库下的批处理实验。正文通过实验编号（E/P）给出完整批次覆盖，并在表~\ref{tab:all_quant} 与表~\ref{tab:all_pilot} 中明确各批次样本规模、目的与关键统计。读者可直接根据实验编号复核对应图表与统计结论。
+\section*{Appendix: Experimental Batch Summary}
 
+Table~\ref{tab:batches} lists all experimental batches with parameters and sample sizes. Batches E01--E12 contributed quantitative data to main analyses; batches P01--P06 were pilot runs for pipeline validation.
+
+\begin{longtable}{p{1.0cm}p{3.8cm}p{1.4cm}p{1.4cm}p{2.0cm}p{3.0cm}}
+\caption{Experimental batch summary}\label{tab:batches}\\
+\toprule
+ID & Type & Seeds & Steps & Key parameters & Purpose \\
+\midrule
+\endfirsthead
+\toprule
+ID & Type & Seeds & Steps & Key parameters & Purpose \\
+\midrule
+\endhead
+E01 & Fixed $N_p$ scan & 10 & 600 & $w \in [0,1]$, $v_p/v_e \in \{1.0,1.1,1.2\}$ & Initial exploration \\
+E02 & Fixed $N_p$ scan (extended) & 15 & 600 & Added $\chi$ metric & First correlation analysis \\
+E03--E04 & Fixed $N_p$ scan (50 seeds) & 50 & 600 & High-sample baseline & Statistical validation \\
+E05 & Fixed $N_p$ scan (100 seeds) & 100 & 600 & $v_p/v_e \in \{1.1,1.2\}$ & Correlation time analysis \\
+E06--E07 & Task-internal $w$ scan & 80--200 & 600 & Full $v_p/v_e$ range & Main results \\
+E08--E09 & Pressure contrast & 120--240 & 600 & $v_p/v_e \in \{0.9,1.3,1.4\}$ & Pressure threshold \\
+E10--E11 & Noise sweep & 100 & 600 & $\eta \in [0,3]$, $w \in \{0.6,1.0\}$ & Alternative control route \\
+E12 & Phase identification & 100 & 1200 & No pursuers, no zones & Intrinsic critical point \\
+\midrule
+P01--P06 & Pilot runs & 10--20 & 400--600 & Various & Pipeline validation \\
+\bottomrule
+\end{longtable}
+
+High-sample batches (E07, E09) provide primary statistical evidence for main conclusions.

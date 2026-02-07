@@ -1,12 +1,45 @@
-\section{引言}
-群体系统在临界附近常表现出高易感性、长相关尺度与较强扰动响应能力，这使“临界性是否提升任务性能”成为跨物理与生物系统的重要问题~\cite{vicsek1995,chate2008,mora2011}。在追逃对抗中，该问题进一步复杂化：逃跑者需要在协同与灵活之间平衡，而追捕者可能利用可预测性进行压制。
+\section{Introduction}
 
-本文关注逃跑者集群，检验以下命题：
+\subsection{Criticality and Collective Motion}
+
+Collective motion in active matter systems exhibits rich phase behaviors that have been extensively studied in statistical physics~\cite{vicsek1995,chate2008,aldana2009}. The canonical Vicsek model demonstrates an order-disorder transition characterized by the emergence of long-range orientational order as noise decreases or density increases~\cite{vicsek1995,gregoire2004}. Near the critical point, these systems display hallmark features including diverging susceptibility, power-law correlations, and enhanced response to perturbations~\cite{toner1995,aldana2009}.
+
+Such critical phenomena have inspired speculation about functional consequences in biological systems. The ``criticality hypothesis'' suggests that biological networks may self-organize near critical points to optimize information processing, sensitivity to environmental changes, and adaptive response~\cite{mora2011,bialek2012}. In collective animal behavior, starling flocks have been reported to exhibit scale-free correlations reminiscent of critical systems~\cite{bialek2012}, though the interpretation remains debated~\cite{chaigneau2022}.
+
+\subsection{The Pursuit-Evasion Context}
+
+While criticality has been studied extensively in equilibrium and non-equilibrium systems, its relevance to adversarial scenarios remains poorly understood. Pursuit-evasion represents a fundamental class of adversarial interactions ubiquitous in biological and engineered systems---from predator-prey dynamics to autonomous drone surveillance~\cite{sumpter2010,isaac2011,vasarhelyi2018}.
+
+In such tasks, evaders face a fundamental trade-off: cohesion enables collective defense and information sharing, but excessive order creates predictability that pursuers can exploit~\cite{strobl2022,hsieh2022}. This tension suggests that optimal evasion strategies may involve intermediate regimes balancing order and disorder. Whether such regimes correspond to critical states of collective motion, and whether criticality genuinely enhances performance, remains an open question.
+
+\subsection{Challenges in Defining Criticality for Adversarial Tasks}
+
+A fundamental challenge in studying criticality in task contexts is defining what ``critical'' means when external forcing is present. Traditional phase identification removes external fields to locate intrinsic transition points. However, in pursuit-evasion, the ``external field'' (pursuers) is inseparable from the task itself.
+
+This creates two distinct questions that are often conflated:
 \begin{enumerate}
-\item 任务内部更“近临界”的参数区是否对应更高生存率；
-\item 该关系是否随追捕压力变化；
-\item 无外场 phase 识别得到的“临界点”能否迁移为任务最优点。
+    \item Does the collective state that performs best in the task correspond to the intrinsic critical point of the collective dynamics?
+    \item Within the task itself, do states with higher criticality proxies (susceptibility, correlation length) achieve better performance?
 \end{enumerate}
 
-为避免跨场景先验引入偏差，本文采用任务内统计判定并对全部实验批次进行统一综合。
+Previous work has not systematically distinguished these questions. Most studies either examine collective dynamics without adversarial forcing~\cite{vicsek1995,chate2008} or study pursuit-evasion without reference to collective phase behavior~\cite{hsieh2022,vasarhelyi2018}. The intersection---whether and when critical collective states benefit adversarial performance---remains largely unexplored.
 
+\subsection{Present Study}
+
+This study addresses these gaps through systematic investigation of pursuit-evasion with evader swarms parameterized to span ordered, critical, and disordered collective regimes. We employ a task-internal criterion for criticality: rather than assuming external phase points transfer to the task, we measure criticality proxies (susceptibility, correlation length, correlation time) within each task setting and examine their relationship with survival performance.
+
+Our experimental design spans two control parameter routes: alignment strength $w_{\text{align}}$ and angular noise $\eta$. For each route, we conduct high-sample sweeps ($n=100$--$240$ seeds per condition) across pursuit intensities $v_p/v_e \in [0.9, 1.4]$, enabling robust statistical characterization of the criticality-performance relationship and its dependence on adversarial pressure.
+
+The results reveal that near-critical advantages are conditional rather than universal. Under moderate pursuit pressure, survival rates correlate positively with criticality proxies, consistent with the intuition that enhanced susceptibility aids collective response. However, this relationship weakens and eventually collapses as pursuit intensity increases, suggesting that optimal strategies shift toward predictability minimization under severe threat.
+
+\subsection{Contributions}
+
+The main contributions of this work are:
+\begin{enumerate}
+    \item A systematic framework for evaluating criticality in adversarial task settings using task-internal statistical proxies.
+    \item Empirical evidence that the criticality-performance relationship is task-dependent, holding under moderate but not high pursuit pressure.
+    \item Demonstration that intrinsic phase critical points (without forcing) do not transfer to task-optimal parameters when external forcing is present.
+    \item Identification of intermediate alignment regimes as generally optimal for evasion, with the specific optimum shifting toward lower alignment as pressure increases.
+\end{enumerate}
+
+These findings advance understanding of collective behavior in adversarial contexts and provide guidance for designing adaptive swarm strategies that tune collective organization to environmental pressure.

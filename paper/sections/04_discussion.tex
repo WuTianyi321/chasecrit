@@ -1,21 +1,48 @@
-\section{讨论}
-\subsection{近临界优势的条件性}
-E07/E09/E10/E11/E12 的综合结果支持一个一致结论：近临界优势并非在所有外场强度下成立。中等压力下，\(\chi\) 增大通常伴随更高生存率；高压力下（E09 的 \(v_p/v_e=1.4\)）该耦合显著弱化。
+\section{Discussion}
 
-\subsection{任务内判定与 phase 判定的分离}
-E12 的峰值噪声（1.80）并未在 E10/E11 中转化为任务最优噪声。该现象说明“无外场相变识别”与“有外场任务最优”是两个不同层次的问题，应避免直接等同。
+\subsection{Conditional Nature of Near-Critical Benefits}
 
-\subsection{关于“低噪声高 \(\chi\)”的解释一致性}
-在 E10/E11 中，低噪声区域同时呈现更高 \(\chi\) 与更高生存率。若判定标准限定为任务内统计表现，则该区域可被解释为“更接近任务内近临界区”，并不与本文框架矛盾。本文强调的限制仅在于：该“任务内近临界”不应被误读为“无外场 phase 临界点已迁移为任务最优点”。
+Our results establish that near-critical regimes confer performance advantages in pursuit-evasion, but with important qualifications. The positive correlation between criticality proxies and survival under moderate pursuit pressure ($v_p/v_e \approx 1.0$--$1.3$) supports the intuition that enhanced susceptibility and long-range correlations aid collective response to dynamic threats. However, this relationship is bounded: when pursuit intensity exceeds a threshold (approximately $v_p/v_e \approx 1.4$ in our parameterization), the correlation collapses.
 
-\subsection{E09 中高 \(\chi\) 区域离散度的来源}
-E09 的 \(\mathrm{safe}\)-\(\chi\) 散点在 \(\chi\approx 4.5\) 附近出现较大纵向离散。补充分层分析显示，该离散主要由不同压力层（\(v_p/v_e=0.9,1.3,1.4\)）混合造成：在 \(\chi\in[4.2,4.8]\) 区间内，\(\mathrm{safe}\) 方差中约 96.7\% 来自压力层间差异。相应地，固定压力层后离散明显收敛。
+This conditional dependence suggests two distinct operational regimes:
+\begin{enumerate}
+    \item \textbf{Response-limited regime} (moderate pressure): Pursuers are not fast enough to exploit predictability fully. The swarm benefits from coordinated collective response enabled by near-critical organization.
+    \item \textbf{Predictability-limited regime} (high pressure): Fast pursuers can intercept aligned groups effectively. Individual unpredictability becomes more valuable than collective coordination, favoring disordered states.
+\end{enumerate}
 
-基于原始运行数据的分层 bootstrap 进一步表明，这一现象并非“样本量不足”的主要结果：\(v_p/v_e=0.9\) 与 \(1.3\) 下 \(\mathrm{corr}(\mathrm{safe},\chi)\) 的 95\% 区间保持正值，而 \(v_p/v_e=1.4\) 下相关接近零且区间跨零。这支持“高压力下 \(\chi\) 与任务绩效解耦”的机制解释。
-与此同时，单次运行层面的原始散点相关接近零，提示该任务中存在较强轨迹级随机性；参数层结论应依赖多 seed 聚合统计而非单点云线性拟合。
+The transition between these regimes implies that optimal swarm strategies must be \textit{context-dependent}, tuning collective organization to environmental threat levels.
 
-\subsection{跨批次一致性}
-从 E01 到 E11，随着样本量上升和指标增强，核心趋势保持一致：中间参数带通常优于极端参数带；高涨落代理对性能的解释力随场景压力变化而变化。
+\subsection{Task-Internal vs. Phase-Only Criticality}
 
-\subsection{局限}
-现有追捕策略主要是近邻追逐，尚未系统引入预测拦截与协作分工；此外，障碍与反射边界下的高样本复验仍需补齐。
+The disconnect between phase-only critical points and task-optimal parameters has important implications. In the Vicsek-like phase setting (no pursuers, no goals), susceptibility peaks at intermediate noise ($\eta \approx 1.8$), consistent with known order-disorder transitions~\cite{vicsek1995,chate2008}. However, in the full task, performance peaks at low noise ($\eta \approx 0$--$0.2$), where susceptibility is also highest \textit{within the task} but far from the phase critical point.
+
+This non-transferability suggests that when external forcing is integral to the task, the relevant ``critical'' regime is task-redefined, not simply the intrinsic collective phase transition. This aligns with theoretical work on driven critical phenomena, where external fields can shift or destroy critical points.
+
+\subsection{Comparison with Biological Systems}
+
+Our findings relate to observations of collective animal behavior. Starling flocks exhibit scale-free correlations suggesting criticality~\cite{bialek2012}, but predation studies show that fish schools balance cohesion against predator avoidance~\cite{sumpter2010}. The conditional benefit of near-critical organization we observe may reflect evolutionary pressures: biological collectives may operate near criticality when threats are moderate but switch to disordered strategies under extreme threat.
+
+The intermediate optimal alignment we observe differs from typical biological flocking where alignment is often strong~\cite{couzin2002}. This may reflect differences in threat characteristics: biological predators often target isolated individuals (favoring cohesion), while our pursuers use nearest-neighbor targeting that can exploit aligned groups.
+
+\subsection{Implications for Engineered Swarms}
+
+For autonomous swarm design, our results suggest:
+\begin{enumerate}
+    \item \textbf{Context-aware tuning:} Swarms should dynamically adjust collective organization based on perceived threat intensity.
+    \item \textbf{Predictability awareness:} When adversaries can exploit coordination patterns, criticality benefits are bounded.
+    \item \textbf{Task-internal validation:} Criticality should be measured and optimized within the task context rather than inferred from simplified phase diagrams.
+\end{enumerate}
+
+These principles motivate ongoing work on self-organized criticality with adaptive parameters.
+
+\subsection{Limitations and Future Directions}
+
+\textbf{Pursuer strategy:} Current pursuers use simple nearest-neighbor targeting. Predictive interception or cooperative encirclement may alter the predictability-coordination trade-off.
+
+\textbf{Environmental complexity:} We focused on periodic boundaries without obstacles. Reflecting boundaries and obstacle fields may modify the criticality-performance relationship.
+
+\textbf{Parameter ranges:} Extensions to larger swarms ($N_e \gg 128$) or different density regimes may reveal additional scaling effects.
+
+\textbf{Finite-size analysis:} Systematic finite-size scaling to confirm critical exponents would strengthen claims about true criticality versus enhanced fluctuations.
+
+Future work should address these limitations while exploring self-organized criticality routes where agents autonomously tune parameters to maintain near-critical operation adapted to local conditions.
