@@ -79,6 +79,7 @@ This proxy is informative but not definitive; task dynamics (goals, capture, ref
 Reader-facing summary:
 - `doc/实验结果-固定追捕者数量扫描.md`
 - `doc/实验结果-临界性验证-噪声控制参.md`
+- `doc/实验结果总览-指标含义与关系解释.md`
 
 Aggregated report + figures:
 - Small grid: `doc/results_20260205_fixedNp_scan/`
@@ -146,6 +147,26 @@ Raw sweeps (not version-controlled):
   - For stronger pressure `speed_ratio=1.4`, this relation collapses (`corr(safe,chi)≈0.02`) and `safe` vs `xi` becomes negative.
   - Interpretation updated from “global yes/no” to “pressure-dependent regime”: near-critical benefit is plausible under moderate pressure but not robust under very strong pressure.
   - `w_align` point optimum remains broad/flat under current noise; conclusions should be stated as an interval/band, not a single exact optimum.
+- E09 high-chi spread diagnosis:
+  - The apparent large `safe` spread around `chi≈4.5` in pooled E09 scatter is mainly a mixed-condition effect (different `speed_ratio` layers overlaid), not pure sampling noise.
+  - In `chi∈[4.2,4.8]`, variance decomposition on group means shows about `96.7%` of `safe` variance comes from between-`speed_ratio` differences.
+  - Bootstrap on raw runs indicates:
+    - `sr=0.9`: `corr(safe,chi)` positive (95% CI above 0);
+    - `sr=1.3`: `corr(safe,chi)` positive (95% CI above 0);
+    - `sr=1.4`: correlation near 0 (95% CI crosses 0), consistent with high-pressure decoupling.
+  - Reader-facing analysis note: `doc/实验结果-E09-chi波动与样本量分析.md`.
+ - Raw-point (non-aggregated) view:
+  - Using per-run `results.csv` points, `corr(chi, safe_frac)` is near zero in E09 (overall about `-0.016`; per-speed ratios also weak), so the relation is not visible at raw trajectory level.
+  - Interpretation should separate:
+    - raw-run stochastic cloud; and
+    - grouped multi-seed parameter-level trend.
+- Consolidated interpretation (from synthesis report):
+  - “Indicators unrelated to performance” is an overstatement; the relation is strongly condition-dependent.
+  - Main reasons for weak/unstable apparent coupling:
+    1. mixed pressure layers in pooled views;
+    2. metric-task mismatch (state descriptors vs terminal objective);
+    3. non-monotonic or plateau-shaped parameter-response curves;
+    4. strong run-level stochasticity in finite-horizon adversarial episodes.
 
 ## Performance baseline (2026-02-06)
 
@@ -175,3 +196,70 @@ Raw sweeps (not version-controlled):
   2. Upgrade pursuer strategy (predictive/cooperative) and rerun key `w_align` slices to test “forced-order penalty”.
   3. Validate robustness in `reflecting` + obstacle settings with the same task-internal criterion.
 - Reporting principle: avoid mixing “external phase baseline” and “in-task criticality ranking” in one conclusion unless explicitly separated.
+- Manuscript method-detail requirement (implemented): keep movement/capture/zone dynamics equations explicit enough for direct reimplementation; avoid high-level prose-only method summaries.
+- Single-parameter route (implemented, for next experiments):
+  - new evader control mode: `align_control_mode = "share"`.
+  - In this mode, `w_align` is interpreted as alignment-share `λ∈[0,1]` in
+    `d = λ d_align + (1-λ) d_non_align`.
+  - Recommended protocol for clarity: set `angle_noise = 0`, keep non-align weights fixed, then scan `w_align`.
+  - Config scaffold: `configs/walign_share_noise0.toml`.
+  - Planning note: `doc/实验路线梳理与下一步协议.md`.
+- First share-mode run completed:
+  - sweep: `runs/sweep_20260206_210225_grid/` (sr `0.9/1.1/1.3/1.4`, `w_align` step `0.05`, seeds `80`, steps `600`).
+  - report: `doc/results_20260206_walign_share_noise0_sr09111314_80seeds/`.
+  - finding: best survival at low-mid `w_align` (`~0.15-0.35`), while `w_align=1.0` is strongly suboptimal.
+  - `corr(safe, chi)` in this setting is negative across all pressure layers, indicating high alignment share does not imply better task performance.
+- New metric direction (from literature):
+  - Source reviewed: `doc/1-s2.0-S0378437125007290-main.pdf` (Physica A, predictive entropy variance).
+  - Candidate primary indicator for this project: sequence-model predictive entropy variance `Var(H_pred)` computed from local/single-agent trajectories.
+  - Rationale: in complex adversarial tasks, predictability fluctuation may be more informative than pure global-order fluctuations.
+  - Implementation roadmap and protocol note: `doc/临界性指标扩展-预测熵方差与任务适配.md`.
+  - MVP implementation status:
+    - command: `chasecrit report-pred-entropy`
+    - module: `src/chasecrit/predictive_entropy.py`
+    - requires per-run timeseries (`--save-runs`, no `--no-save-timeseries`)
+    - uses probe heading sequence + circular EMA + discretization + N-gram predictor
+    - caveat: `sweep-grid` parallel path (`jobs>1`) currently does not preserve per-run `run_dir`; predictive-entropy analysis therefore requires sweeps executed with `jobs=1` when using `--save-runs`.
+  - pilot evidence (`share` mode, `noise=0`, `sr=1.1`):
+    - seeds=12: `corr(safe,chi)≈-0.374`, `corr(safe,Var(H_pred))≈+0.283`
+    - seeds=20: `corr(safe,chi)≈-0.538`, `corr(safe,Var(H_pred))≈+0.224`
+    - suggests `Var(H_pred)` may track task performance direction better than `chi` in this setting.
+  - scale-up evidence (`share`, `noise=0`, `sr=1.1/1.3`, seeds=80):
+    - sweep: `runs/sweep_20260206_214125_grid/` (`3360` runs).
+    - predictor-valid runs: `3320`.
+    - `sr=1.1`: `corr(safe,Var(H_pred))` weak negative; `sr=1.3`: moderate positive.
+    - pooled correlation remains weak positive, suggesting regime dependence rather than universal monotonic coupling.
+
+## SOC controller status (2026-02-07)
+
+- SOC controller has been integrated as an opt-in path with backward compatibility:
+  - config fields in `EvaderConfig` (`soc_enabled` and SOC gains/threshold/relaxation bounds),
+  - state container `EvaderSocState` in `src/chasecrit/policies.py`,
+  - simulation output metrics:
+    - `soc_topple_steps`,
+    - `soc_topple_events_total`,
+    - `soc_topple_size_mean`,
+    - `soc_topple_size_var`,
+    - `soc_branch_ratio`.
+  - semantic note:
+    - with SOC enabled, `w_align` is the set-point for dynamic per-agent `lambda_i(t)` (toppling drops it, relaxation pulls it back), not a fixed weight.
+- Compatibility and behavior tests:
+  - new file `tests/test_soc_mode.py`,
+  - full test status after integration: `uv run pytest -q` -> `9 passed, 3 skipped`,
+  - type check: `uv run pyright` -> `0 errors`.
+- SOC smoke experiment artifacts:
+  - baseline: `runs/sweep_20260207_103331_grid` -> `doc/results_20260207_soc_smoke_baseline/`
+  - SOC-MVP: `runs/sweep_20260207_103347_grid` -> `doc/results_20260207_soc_smoke_mvp/`
+  - SOC-Soft: `runs/sweep_20260207_103434_grid` -> `doc/results_20260207_soc_smoke_soft/`
+  - settings: `speed_ratio=1.1`, `w_align in {0.4,0.6,0.8}`, `steps=400`, `seeds=20`.
+- Current conclusion from smoke:
+  - SOC dynamics signals are present (`soc_topple_steps` high, `soc_branch_ratio` around `1.11`).
+  - These two initial SOC parameterizations do **not** yet improve `safe_frac` over baseline.
+  - Next work should tune SOC criticality level (threshold/coupling/drop/drive) and test across pressure layers rather than using a single fixed SOC parameter set.
+- Reader-facing summary for this stage:
+  - `doc/实验结果-SOC算法接入与初步冒烟实验-20260207.md`.
+- SOC conceptual update:
+  - new design baseline is SOC-v2 without regression to fixed `w_align` in SOC mode;
+  - `w_align` should not be treated as a steady set-point for SOC claims;
+  - preferred formulation maps dynamic alignment directly from stress (`lambda_i=f(s_i)`), with predictive-entropy fluctuation as local drive.
+  - design note: `doc/SOC-v2方案-基于预测熵波动的自组织临界控制.md`.

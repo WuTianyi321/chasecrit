@@ -21,6 +21,7 @@ from .config import (
 )
 from .bench import run_small_benchmark
 from .io_utils import csv_write, ensure_dir, json_dump
+from .predictive_entropy import run_predictive_entropy_report
 from .report import load_results_csv, summarize_by_group, summarize_by_two_keys, write_group_summary_csv
 from .plotting import plot_heatmap, plot_metric_vs_w_align, plot_metric_vs_x, plot_scatter
 from .sim import run_once, run_summary
@@ -77,6 +78,17 @@ def _build_parser() -> argparse.ArgumentParser:
     noise_rep.add_argument("--sweep-dir", type=str, required=True, help="Sweep directory containing results.csv")
     noise_rep.add_argument("--out-dir", type=str, required=True, help="Output directory for report and figures")
     noise_rep.add_argument("--title", type=str, default="Noise sweep report", help="Report title")
+
+    pred_rep = sub.add_parser(
+        "report-pred-entropy",
+        help="Compute predictive-entropy-variance metrics from per-run probe trajectories",
+    )
+    pred_rep.add_argument("--sweep-dir", type=str, required=True, help="Sweep directory containing results.csv and per-run timeseries")
+    pred_rep.add_argument("--out-dir", type=str, required=True, help="Output directory for predictive-entropy report")
+    pred_rep.add_argument("--title", type=str, default="Predictive entropy variance report", help="Report title")
+    pred_rep.add_argument("--bins", type=int, default=72, help="Discretization bins for heading angle")
+    pred_rep.add_argument("--ema-span", type=int, default=10, help="Circular EMA span for heading smoothing")
+    pred_rep.add_argument("--order", type=int, default=2, help="N-gram order for predictor context")
 
     sweep_noise = sub.add_parser("sweep-noise", help="Sweep angle_noise and pursuer speed_ratio (fixed pursuer count)")
     _base_args(sweep_noise)
@@ -185,6 +197,7 @@ def main(argv: list[str] | None = None) -> int:
         "report",
         "phase-sweep-noise",
         "report-noise",
+        "report-pred-entropy",
         "bench-speed",
     }
     if not argv:
@@ -574,6 +587,18 @@ def main(argv: list[str] | None = None) -> int:
 
         (Path(out_dir) / "report.md").write_text("\n".join(md), encoding="utf-8")
         print(f"Wrote report to: {out_dir}")
+        return 0
+
+    if cmd == "report-pred-entropy":
+        report_path = run_predictive_entropy_report(
+            sweep_dir=Path(args.sweep_dir),
+            out_dir=Path(args.out_dir),
+            title=str(args.title),
+            bins=int(args.bins),
+            ema_span=int(args.ema_span),
+            order=int(args.order),
+        )
+        print(f"Wrote predictive-entropy report to: {report_path}")
         return 0
 
     if cmd == "phase-sweep-noise":

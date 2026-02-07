@@ -16,6 +16,7 @@ w_align = 0.6
 w_goal = 1.2
 w_avoid = 1.5
 w_explore = 0.4
+align_control_mode = "legacy" # "legacy": independent weights; "share": w_align is alignment share in [0,1]
 angle_noise = 0.12
 
 [pursuers]
@@ -45,4 +46,3 @@ seed = 0
 out_dir = "runs"
 save_timeseries = true
 save_events = true
-

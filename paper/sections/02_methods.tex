@@ -1,26 +1,154 @@
 \section{任务与方法}
-\subsection{场景与信息约束}
-环境为二维连续空间。逃跑者无显式通信，仅局部观测邻居、追捕者与安全区。安全区为多目标、容量受限、缓慢移动并随机刷新；容量耗尽后失效消失。默认捕获规则为瞬时捕获。
+\subsection{场景、状态变量与边界映射}
+环境为二维连续空间 \(\Omega=[0,L_x)\times[0,L_y)\)，离散时间步长为 \(\Delta t\)。
+逃跑者集合记为 \(\mathcal{E}\)（规模 \(N_e\)），追捕者集合记为 \(\mathcal{P}\)（规模 \(N_p\)），安全区集合记为 \(\mathcal{Z}\)（动态规模，最多 \(K_{\max}\) 个有效区）。
+状态变量包括：
+\begin{itemize}
+\item 逃跑者位置/速度 \((x_i(t),v_i(t))\), \(i\in\mathcal{E}\)；
+\item 追捕者位置/速度 \((y_m(t),u_m(t))\), \(m\in\mathcal{P}\)；
+\item 安全区位置/速度 \((z_k(t),q_k(t))\)、容量 \(C_k\)、占用 \(O_k(t)\)、有效标记 \(a_k(t)\)。
+\end{itemize}
+边界映射记为 \(\mathcal{B}(\cdot)\)：
+\begin{itemize}
+\item 周期边界：\(\mathcal{B}(x)=x\bmod (L_x,L_y)\)；
+\item 反射边界：按 \(x^\ast=\mathrm{mod}(x,2L)\) 折叠到 \([0,L]\)，若发生折返则对应速度分量取反。
+\end{itemize}
+仿真中每一步先更新安全区，再更新逃跑者与追捕者，最后执行捕获与入区判定。
 
-\subsection{策略参数与控制变量}
-核心行为参数为
-\(
-w_{\text{align}} \in [0,1]
-\)，用于调节邻居跟随强度；并使用角噪声 \(\text{angle\_noise}\) 作为另一条控制参路线。追捕强度由速度比 \(v_p/v_e\) 表征。
+\subsection{逃跑者运动更新}
+每步仅对仍存活且未入区个体（记作 \(\mathcal{A}(t)\)）更新。对 \(i\in\mathcal{A}(t)\)，定义周期最短位移
+\(\Delta_{ij}(t)\)、\(\Delta_{im}^{(p)}(t)\)、\(\Delta_{ik}^{(z)}(t)\)。
+单位化算子记为 \(\mathrm{unit}(\cdot)\)。
+
+邻域对齐与排斥项：
+\begin{align}
+d_i^{\text{align}} &= \mathrm{unit}\!\left(\sum_{j\neq i,\ \|\Delta_{ij}\|^2\le r_{\text{nbr}}^2}\mathrm{unit}(v_j)\right),\\
+d_i^{\text{sep}} &= s_{\text{sep}}\cdot \mathrm{unit}\!\left(-\sum_{j\neq i,\ \|\Delta_{ij}\|^2\le r_{\text{sep}}^2}\frac{\Delta_{ij}}{\max(\|\Delta_{ij}\|^2,\varepsilon)}\right).
+\end{align}
+追捕规避项：
+\begin{equation}
+d_i^{\text{avoid}}=\mathrm{unit}\!\left(-\sum_{m,\ \|\Delta_{im}^{(p)}\|^2\le r_{\text{pred}}^2}\frac{\Delta_{im}^{(p)}}{\max(\|\Delta_{im}^{(p)}\|^2,\varepsilon)}\right).
+\end{equation}
+目标项：在可检测有效安全区集合
+\(\mathcal{Z}_i(t)=\{k:a_k(t)=1,\ \|\Delta_{ik}^{(z)}\|^2\le r_{\text{detect}}^2\}\)
+中选最近区 \(k^\star\)。若 \(\mathcal{Z}_i(t)\neq\varnothing\)，
+\begin{equation}
+d_i^{\text{goal}}=\mathrm{unit}(\Delta_{ik^\star}^{(z)}),\quad I_i^{\text{goal}}=1;
+\end{equation}
+否则 \(I_i^{\text{goal}}=0\)，探索方向为当前航向（若速度近零则随机单位向量）\(d_i^{\text{explore}}\)。
+
+合成方向采用两种控制模式：
+\begin{itemize}
+\item 传统独立权重模式（legacy）：
+\begin{equation}
+\tilde d_i = w_{\text{align}}d_i^{\text{align}}
++ w_{\text{avoid}}d_i^{\text{avoid}}
++ w_{\text{goal}}I_i^{\text{goal}}d_i^{\text{goal}}
++ w_{\text{explore}}(1-I_i^{\text{goal}})d_i^{\text{explore}}
++ d_i^{\text{sep}}.
+\end{equation}
+\item 单参数占比模式（share）：令 \(\lambda\in[0,1]\) 表示对齐项占比（实现中 \(\lambda=w_{\text{align}}\)），先构造非对齐复合方向
+\begin{equation}
+d_i^{\text{non}}=\mathrm{unit}\!\left(
+w_{\text{avoid}}d_i^{\text{avoid}}
++ w_{\text{goal}}I_i^{\text{goal}}d_i^{\text{goal}}
++ w_{\text{explore}}(1-I_i^{\text{goal}})d_i^{\text{explore}}
++ d_i^{\text{sep}}
+\right),
+\end{equation}
+再按
+\begin{equation}
+\tilde d_i=\lambda d_i^{\text{align}}+(1-\lambda)d_i^{\text{non}}.
+\end{equation}
+\end{itemize}
+令 \(d_i=\mathrm{unit}(\tilde d_i)\)，并施加角噪声
+\(\theta_i\sim\mathcal U[-\eta,\eta]\)（\(\eta=\text{angle\_noise}\)）：
+\begin{equation}
+d_i^{\eta}=\mathrm{unit}(R(\theta_i)d_i).
+\end{equation}
+速度采用惯性混合更新：
+\begin{equation}
+v_i(t+1)=(1-\alpha)v_i(t)+\alpha v_e d_i^{\eta},\quad \alpha=\text{inertia}.
+\end{equation}
+位置更新为
+\begin{equation}
+x_i(t+1)=\mathcal{B}\!\left(x_i(t)+v_i(t+1)\Delta t\right).
+\end{equation}
+
+\subsection{追捕者更新、捕获与入区规则}
+追捕者速度上限设为 \(v_p=\gamma v_e\)（\(\gamma=v_p/v_e\)）。
+当前策略为最近邻追逐：
+\begin{equation}
+j^\star(m)=\arg\min_{j\in\mathcal{A}(t)}\|\Delta_{mj}^{(e)}(t)\|^2,\qquad
+u_m(t+1)=v_p\cdot \mathrm{unit}\!\left(\Delta_{mj^\star(m)}^{(e)}(t)\right),
+\end{equation}
+\begin{equation}
+y_m(t+1)=\mathcal{B}\!\left(y_m(t)+u_m(t+1)\Delta t\right).
+\end{equation}
+
+捕获规则为瞬时捕获：若存在 \(m\) 使 \(\|x_i-y_m\|\le r_{\text{cap}}\)，则逃跑者 \(i\) 在该步记为 captured。
+
+入区规则按安全区逐个处理：对有效区 \(k\)，找出 \(\|x_i-z_k\|\le r_{\text{safe}}\) 的候选并随机打乱；按顺序填充容量，若
+\(O_k(t)\ge C_k\) 则该区立即失效（逻辑消失）。
+
+\subsection{安全区 G0 缓慢移动与刷新机制}
+安全区采用 G0 常速随机游走。每隔 \(T_{\text{turn}}\) 步，方向旋转角
+\(\phi\sim\mathcal U[-\phi_{\max},\phi_{\max}]\)，随后归一化并乘以常速 \(v_z\)；位置更新：
+\begin{equation}
+z_k(t+1)=\mathcal{B}\!\left(z_k(t)+q_k(t+1)\Delta t\right).
+\end{equation}
+刷新规则：
+\begin{itemize}
+\item 若当前有效区数为 0，则强制刷新 1 个安全区；
+\item 若有效区数 \(<K_{\max}\)，以概率 \(p_{\text{spawn}}\) 触发随机刷新；
+\item 反射边界下刷新点从边界采样，周期边界下从域内均匀采样；
+\item 刷新点需满足与其他安全区、追捕者（及障碍，如启用）的最小距离约束。
+\end{itemize}
+
+\subsection{参数固定项与扫描项（写明 \(w_{\text{align}}\) 扫描时其余参数）}
+表~\ref{tab:param_protocol} 给出本文主结论所用实验族的固定参数与扫描参数。除特别注明外，未扫描参数均固定为表中数值。
+
+\begin{table}[htbp]
+\centering
+\caption{主要实验族的参数协议（固定项与扫描项）}
+\label{tab:param_protocol}
+\begin{tabular}{p{2.1cm}p{5.8cm}p{5.0cm}}
+\toprule
+实验族 & 固定参数（核心） & 扫描参数 \\
+\midrule
+E07（任务内 \(w_{\text{align}}\), 200 seeds） &
+\(N_e=128\), \(N_p=2\), \(v_e=1.0\), inertia \(=0.35\), \(r_{\text{nbr}}=6.0\), \(r_{\text{pred}}=10.0\), \(r_{\text{detect}}=4.0\), \(r_{\text{sep}}=1.25\), \(s_{\text{sep}}=1.0\), \(w_{\text{goal}}=1.2\), \(w_{\text{avoid}}=1.5\), \(w_{\text{explore}}=0.4\), angle\_noise \(=0.12\), boundary=periodic, \(K_{\max}=4\), \(r_{\text{safe}}=1.0\), \(v_z=0.1\), steps \(=600\) &
+\(w_{\text{align}}\in\{0,0.05,\ldots,1.0\}\),
+\(v_p/v_e\in\{1.0,1.05,1.1,1.15,1.2\}\) \\
+\midrule
+E09（压力对比） &
+与 E07 相同（含 angle\_noise \(=0.12\)） &
+\(w_{\text{align}}\in\{0,0.05,\ldots,1.0\}\),
+\(v_p/v_e\in\{0.9,1.3,1.4\}\) \\
+\midrule
+E10/E11（任务噪声） &
+与 E07 相同，且 \(v_p/v_e=1.1\)；E10 固定 \(w_{\text{align}}=0.6\)，E11 固定 \(w_{\text{align}}=1.0\) &
+angle\_noise \(\in\{0,0.2,\ldots,3.0\}\) \\
+\midrule
+E12（phase 噪声识别） &
+\(N_p=0\), \(K_{\max}=0\), \(w_{\text{goal}}=w_{\text{avoid}}=w_{\text{explore}}=0\), \(w_{\text{align}}=1.0\), 其余动力学参数同上, steps \(=1200\) &
+angle\_noise \(\in\{0,0.2,\ldots,3.0\}\) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+单参数占比路线（share）用于后续实验：固定 angle\_noise \(=0\)，扫描 \(\lambda=w_{\text{align}}\in[0,1]\)，其余权重 \(w_{\text{goal}},w_{\text{avoid}},w_{\text{explore}}\) 固定，从而避免“多权重同时竞争”带来的解释歧义。
 
 \subsection{任务内临界性判定}
 主判定指标为
 \begin{equation}
 \chi = N_e \cdot \mathrm{Var}_t(P(t)),
 \end{equation}
-其中 \(P(t)\) 是存活逃跑者速度极化度。辅助指标包括：
-\begin{itemize}
-\item \(\chi_{\text{local}} = N_e \cdot \mathrm{Var}(P_{\text{local}})\)；
-\item \(\tau_{P,\mathrm{AR1}} = \frac{1+\rho_1}{1-\rho_1}\)；
-\item \(\xi_{\text{fluct}}\)：涨落相关长度代理。
-\end{itemize}
-本文将“更近临界”定义为同一任务设置内上述指标相对更高，而非外部 phase 峰值的直接迁移。
+其中 \(P(t)\) 为存活逃跑者速度极化度。辅助指标为
+\(\chi_{\text{local}}=N_e\cdot \mathrm{Var}(P_{\text{local}})\)、
+\(\tau_{P,\mathrm{AR1}}=\frac{1+\rho_1}{1-\rho_1}\)、
+\(\xi_{\text{fluct}}\)（涨落相关长度代理）。
+本文将“更近临界”定义为同一任务设置内这些统计量的相对升高，而非外部 phase 峰值的直接迁移。
 
 \subsection{统计协议}
-每个参数格点使用多随机种子重复，报告均值与 95\% CI。关联分析使用格点均值层面的 Pearson（必要时补充 Spearman）相关系数。
-
+每个参数格点采用多随机种子重复，报告均值与 95\% CI。相关性分析使用格点均值层面的 Pearson（必要时补充 Spearman）系数。

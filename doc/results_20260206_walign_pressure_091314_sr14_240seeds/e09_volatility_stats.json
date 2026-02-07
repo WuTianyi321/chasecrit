@@ -1,0 +1,30 @@
+{
+  "dataset": "E09 group_summary",
+  "points_total": 63,
+  "chi_window": [
+    4.2,
+    4.8
+  ],
+  "chi_window_points": 34,
+  "safe_var_total": 0.0024112801265826545,
+  "safe_var_between_speed_ratio": 0.0023311251734064913,
+  "safe_var_within_speed_ratio": 8.015495317616314e-05,
+  "between_share": 0.9667583403966583,
+  "boot_corr_by_speed_ratio": {
+    "0.9": {
+      "corr_point": 0.27155442601488083,
+      "corr_boot_ci95_low": 0.03665415756488888,
+      "corr_boot_ci95_high": 0.4093270354962635
+    },
+    "1.3": {
+      "corr_point": 0.3782187052413607,
+      "corr_boot_ci95_low": 0.09768165358422379,
+      "corr_boot_ci95_high": 0.4767866515352051
+    },
+    "1.4": {
+      "corr_point": 0.02438918290622416,
+      "corr_boot_ci95_low": -0.14812481733803523,
+      "corr_boot_ci95_high": 0.1996393014475822
+    }
+  }
+}

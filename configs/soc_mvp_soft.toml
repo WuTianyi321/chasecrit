@@ -1,0 +1,13 @@
+[evaders]
+soc_enabled = true
+soc_stress_decay = 0.08
+soc_surprise_gain = 0.30
+soc_threat_gain = 0.35
+soc_threshold = 0.40
+soc_release = 0.25
+soc_neighbor_coupling = 0.12
+soc_align_drop = 0.15
+soc_align_relax = 0.03
+soc_align_min = 0.05
+soc_align_max = 0.95
+soc_topple_noise = 0.12

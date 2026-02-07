@@ -106,6 +106,18 @@ E07 与 E09 构成本文主结果骨架。E07（高样本）显示在 \(v_p/v_e=
 \label{fig:e09_pressure}
 \end{figure}
 
+\subsection{E09 离散度诊断}
+在 E09 合并散点中，\(\chi\approx4.5\) 区域存在明显纵向离散。按压力分层后可见该离散主要来自 \(v_p/v_e\) 层间基线差异：相同 \(\chi\) 水平下，\(v_p/v_e=0.9\) 的 \(\mathrm{safe}\) 系统性高于 \(1.3\) 与 \(1.4\)。在 \(\chi\in[4.2,4.8]\) 区间，\(\mathrm{safe}\) 方差约 96.7\% 可由层间差异解释，说明该现象主要是条件混合效应而非单一指标噪声。
+
+若不做任何聚合、直接在单次运行层面考察 \((\chi,\mathrm{safe\_frac})\)，相关性较弱：E09 全部原始点的 Pearson 相关约为 \(-0.016\)，且各压力层分别约为 \(-0.025\)（\(v_p/v_e=0.9\)）、\(0.051\)（\(1.3\)）与 \(0.018\)（\(1.4\)）。因此，本文对“近临界优势”的讨论以参数格点统计量（多 seed 汇总）为主，并将原始点云解释为高随机性背景下的微观离散。
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.68\textwidth]{../doc/results_20260206_walign_pressure_091314_sr14_240seeds/figs/scatter_safe_vs_chi_by_sr.png}
+\caption{E09: 按压力分层后的 \(\mathrm{safe}\)-\(\chi\) 散点}
+\label{fig:e09_by_sr}
+\end{figure}
+
 \subsection{噪声路线全量结果（关键对照）}
 E10 与 E11 均显示任务噪声扫描中 \(\mathrm{safe}\)-\(\chi\) 强正相关。尤其 E11（\(w_{\text{align}}=1.0\)）给出 Pearson 0.824、Spearman 0.965。E12 则表明无外场 phase 设置中 \(\chi\) 峰值位于 noise=1.80，与任务最优噪声不一致。
 

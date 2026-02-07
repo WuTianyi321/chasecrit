@@ -70,3 +70,21 @@
 ![scatter_safe_vs_tau_P_ar1](figs/scatter_safe_vs_tau_P_ar1.png)
 
 ![scatter_safe_vs_components](figs/scatter_safe_vs_components.png)
+
+## Volatility diagnostics for Fig.4 (E09)
+
+- Stratified scatter (colored by `speed_ratio`): `figs/scatter_safe_vs_chi_by_sr.png`
+- Per-speed curve view (ordered by `w_align`): `figs/safe_vs_chi_by_sr_curves.png`
+- Quantitative diagnosis and bootstrap assessment:
+  - `doc/实验结果-E09-chi波动与样本量分析.md`
+  - `e09_volatility_stats.json`
+
+## Raw (non-mean) scatter diagnostics
+
+- Raw scatter of all runs (no grouping): `figs/scatter_safefrac_vs_chi_raw_all.png`
+- Raw density (hexbin) of all runs: `figs/hexbin_safefrac_vs_chi_raw_all.png`
+- Raw scatter by pressure layer (still no grouping): `figs/scatter_safefrac_vs_chi_raw_by_sr.png`
+- Raw scatter for each pressure layer separately:
+  - `figs/scatter_safefrac_vs_chi_raw_sr09.png`
+  - `figs/scatter_safefrac_vs_chi_raw_sr13.png`
+  - `figs/scatter_safefrac_vs_chi_raw_sr14.png`

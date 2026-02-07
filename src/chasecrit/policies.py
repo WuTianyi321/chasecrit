@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Literal, TypeVar
 
 import numpy as np
 
@@ -131,6 +131,27 @@ class EvaderDenseWorkspace:
         return int(self.dist2.shape[0])
 
 
+@dataclass
+class EvaderSocState:
+    """
+    Per-evader adaptive state for the optional SOC-like controller.
+    """
+
+    stress: np.ndarray
+    align_share: np.ndarray
+    last_toppled: np.ndarray
+    last_topple_count: int
+
+    @staticmethod
+    def create(n_evaders: int, init_align_share: float) -> "EvaderSocState":
+        return EvaderSocState(
+            stress=np.zeros((n_evaders,), dtype=np.float64),
+            align_share=np.full((n_evaders,), float(init_align_share), dtype=np.float64),
+            last_toppled=np.zeros((n_evaders,), dtype=bool),
+            last_topple_count=0,
+        )
+
+
 def evader_step(
     *,
     pos_e: np.ndarray,
@@ -154,6 +175,20 @@ def evader_step(
     w_explore: float,
     sep_strength: float,
     angle_noise: float,
+    align_control_mode: Literal["legacy", "share"] = "legacy",
+    soc_enabled: bool = False,
+    soc_state: EvaderSocState | None = None,
+    soc_stress_decay: float = 0.05,
+    soc_surprise_gain: float = 0.4,
+    soc_threat_gain: float = 0.3,
+    soc_threshold: float = 0.25,
+    soc_release: float = 0.2,
+    soc_neighbor_coupling: float = 0.15,
+    soc_align_drop: float = 0.25,
+    soc_align_relax: float = 0.02,
+    soc_align_min: float = 0.05,
+    soc_align_max: float = 0.95,
+    soc_topple_noise: float = 0.2,
     dense_ws: EvaderDenseWorkspace | None = None,
     prefer_numba: bool | None = None,
 ) -> np.ndarray:
@@ -182,7 +217,8 @@ def evader_step(
     r2_nbr = float(r_nbr * r_nbr)
     r2_sep = float(r_sep * r_sep)
     eps = 1e-6
-    use_numba = _numba_enabled(prefer_numba)
+    use_numba = _numba_enabled(prefer_numba) and (not soc_enabled)
+    mask_n_dense: np.ndarray | None = None
 
     if M <= 256 and use_numba:
         align_sum = np.empty((M, 2), dtype=np.float64)
@@ -217,6 +253,7 @@ def evader_step(
 
             mask_n = dense_ws.mask_n[:M, :M]
             np.less_equal(dist2, r2_nbr, out=mask_n)
+            mask_n_dense = mask_n
             mask_n_f32 = dense_ws.mask_n_f32[:M, :M]
             mask_n_f32[...] = mask_n
             align_sum = dense_ws.align_sum[:M, :]
@@ -244,6 +281,7 @@ def evader_step(
             np.fill_diagonal(dist2, np.inf)
 
             mask_n = dist2 <= r2_nbr
+            mask_n_dense = mask_n
             align_sum = mask_n.astype(np.float32) @ v_dir
 
             mask_s = dist2 <= r2_sep
@@ -347,6 +385,7 @@ def evader_step(
 
     # Avoid pursuers (M x Np, Np is small).
     r2_pred = float(r_pred * r_pred)
+    dist2_ap = np.empty((M, 0), dtype=np.float64)
     if pos_p.shape[0] > 0:
         delta_ap = pos_p[None, :, :] - p[:, None, :]
         if periodic:
@@ -385,13 +424,76 @@ def evader_step(
     d_explore = heading.copy()
     d_explore[near_zero] = rand_dir[near_zero]
 
-    d = (
-        w_align * d_align
-        + w_avoid * d_avoid
+    d_non_align = unit(
+        w_avoid * d_avoid
         + w_goal * (d_goal * has_goal[:, None])
         + w_explore * (d_explore * (~has_goal)[:, None])
         + d_sep
     )
+
+    if soc_enabled:
+        if soc_state is None:
+            raise ValueError("soc_state must be provided when soc_enabled=True")
+
+        align_share = soc_state.align_share[alive_idx]
+        align_share[:] = np.clip(align_share, soc_align_min, soc_align_max)
+        d = align_share[:, None] * d_align + (1.0 - align_share)[:, None] * d_non_align
+        d = unit(d)
+
+        heading_dot = np.einsum("ij,ij->i", heading, d)
+        heading_dot = np.clip(heading_dot, -1.0, 1.0)
+        surprise = 0.5 * (1.0 - heading_dot)
+
+        if dist2_ap.shape[1] > 0:
+            min_dist = np.sqrt(np.min(dist2_ap, axis=1))
+            pred_range = max(float(r_pred), 1e-6)
+            threat = np.clip(1.0 - (min_dist / pred_range), 0.0, 1.0)
+        else:
+            threat = np.zeros((M,), dtype=np.float64)
+
+        stress = soc_state.stress[alive_idx]
+        stress *= max(0.0, 1.0 - soc_stress_decay)
+        stress += soc_surprise_gain * surprise + soc_threat_gain * threat
+
+        toppled = stress > soc_threshold
+        if mask_n_dense is not None and soc_neighbor_coupling > 0.0 and np.any(toppled):
+            nbr_cnt = np.maximum(mask_n_dense.sum(axis=1).astype(np.float64), 1.0)
+            bump = soc_neighbor_coupling * ((mask_n_dense @ toppled.astype(np.float64)) / nbr_cnt)
+            stress += bump
+            toppled = stress > soc_threshold
+
+        if np.any(toppled):
+            stress[toppled] = np.maximum(0.0, stress[toppled] - soc_release)
+            align_share[toppled] -= soc_align_drop
+            align_share[:] = np.clip(align_share, soc_align_min, soc_align_max)
+            if soc_topple_noise > 0.0:
+                angles = rng.uniform(-soc_topple_noise, soc_topple_noise, size=(int(np.count_nonzero(toppled)),))
+                d[toppled] = unit(rotate(d[toppled], angles))
+
+        # Slow relaxation back to base alignment share.
+        align_share += soc_align_relax * (float(np.clip(w_align, 0.0, 1.0)) - align_share)
+        align_share[:] = np.clip(align_share, soc_align_min, soc_align_max)
+        soc_state.stress[alive_idx] = stress
+        soc_state.align_share[alive_idx] = align_share
+
+        soc_state.last_toppled[:] = False
+        soc_state.last_toppled[alive_idx] = toppled
+        soc_state.last_topple_count = int(np.count_nonzero(toppled))
+    else:
+        if soc_state is not None:
+            soc_state.last_toppled[:] = False
+            soc_state.last_topple_count = 0
+        if align_control_mode == "share":
+            align_share = float(np.clip(w_align, 0.0, 1.0))
+            d = align_share * d_align + (1.0 - align_share) * d_non_align
+        else:
+            d = (
+                w_align * d_align
+                + w_avoid * d_avoid
+                + w_goal * (d_goal * has_goal[:, None])
+                + w_explore * (d_explore * (~has_goal)[:, None])
+                + d_sep
+            )
     d = unit(d)
 
     if angle_noise > 0:

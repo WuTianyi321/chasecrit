@@ -11,7 +11,7 @@ from .config import ExperimentConfig, load_config
 from .geometry import apply_periodic_inplace, apply_reflecting, unit, wrap_delta_inplace
 from .io_utils import csv_write, ensure_dir, json_dump
 from .metrics import component_count, correlation_length_fluctuation, local_polarization_stats, polarization
-from .policies import EvaderDenseWorkspace, evader_step, pursuer_step_p0_nearest
+from .policies import EvaderDenseWorkspace, EvaderSocState, evader_step, pursuer_step_p0_nearest
 from .safe_zones import SafeZones
 
 
@@ -36,6 +36,7 @@ class Simulation:
         Np = cfg.pursuers.count
         self.pos_p = self.rng.uniform(low=[0.0, 0.0], high=self.world_size, size=(Np, 2)).astype(np.float64)
         self.vel_p = np.zeros((Np, 2), dtype=np.float64)
+        self._probe_evader: int = 0
 
         self._capture_delta = np.empty((Ne, max(1, Np), 2), dtype=np.float64)
         self._capture_dist2 = np.empty((Ne, max(1, Np)), dtype=np.float64)
@@ -67,6 +68,14 @@ class Simulation:
         self._evader_dense_ws: EvaderDenseWorkspace | None = None
         if int(cfg.evaders.count) <= 512:
             self._evader_dense_ws = EvaderDenseWorkspace.create(int(cfg.evaders.count))
+
+        self._soc_state: EvaderSocState | None = None
+        self._soc_topple_sizes: list[int] = []
+        if bool(cfg.evaders.soc_enabled):
+            self._soc_state = EvaderSocState.create(
+                n_evaders=int(cfg.evaders.count),
+                init_align_share=float(np.clip(cfg.evaders.w_align, 0.0, 1.0)),
+            )
 
     def _spawn_zones(self, t: int) -> None:
         cfgz = self.cfg.safe_zones
@@ -126,6 +135,14 @@ class Simulation:
         self._steps_recorded = int(t) + 1
 
         if self.cfg.run.save_timeseries:
+            probe_active = bool(self.alive[self._probe_evader] and (not self.safe[self._probe_evader]) and (not self.captured[self._probe_evader]))
+            probe_heading_deg = float("nan")
+            if probe_active:
+                vx = float(self.vel_e[self._probe_evader, 0])
+                vy = float(self.vel_e[self._probe_evader, 1])
+                if (vx * vx + vy * vy) > 1e-12:
+                    probe_heading_deg = float((np.degrees(np.arctan2(vy, vx)) + 360.0) % 360.0)
+
             self.timeseries.append(
                 {
                     "t": int(t),
@@ -134,6 +151,10 @@ class Simulation:
                     "captured": self._last_captured,
                     "active_zones": int(self.zones.active_count()),
                     "P": P,
+                    "probe_id": int(self._probe_evader),
+                    "probe_active": int(probe_active),
+                    "probe_heading_deg": probe_heading_deg,
+                    "soc_topples": int(self._soc_state.last_topple_count) if self._soc_state is not None else 0,
                 }
             )
 
@@ -170,9 +191,25 @@ class Simulation:
             w_explore=cfg.evaders.w_explore,
             sep_strength=cfg.evaders.sep_strength,
             angle_noise=cfg.evaders.angle_noise,
+            align_control_mode=cfg.evaders.align_control_mode,
+            soc_enabled=cfg.evaders.soc_enabled,
+            soc_state=self._soc_state,
+            soc_stress_decay=cfg.evaders.soc_stress_decay,
+            soc_surprise_gain=cfg.evaders.soc_surprise_gain,
+            soc_threat_gain=cfg.evaders.soc_threat_gain,
+            soc_threshold=cfg.evaders.soc_threshold,
+            soc_release=cfg.evaders.soc_release,
+            soc_neighbor_coupling=cfg.evaders.soc_neighbor_coupling,
+            soc_align_drop=cfg.evaders.soc_align_drop,
+            soc_align_relax=cfg.evaders.soc_align_relax,
+            soc_align_min=cfg.evaders.soc_align_min,
+            soc_align_max=cfg.evaders.soc_align_max,
+            soc_topple_noise=cfg.evaders.soc_topple_noise,
             dense_ws=self._evader_dense_ws,
             prefer_numba=self.prefer_numba,
         )
+        if self._soc_state is not None:
+            self._soc_topple_sizes.append(int(self._soc_state.last_topple_count))
         self.pos_e = self.pos_e + self.vel_e * dt
 
         if self.cfg.world.boundary == "periodic":
@@ -319,6 +356,15 @@ class Simulation:
             periodic=self.periodic,
             neighbor_radius=self.cfg.evaders.neighbor_radius,
         )
+        topple_arr = np.asarray(self._soc_topple_sizes, dtype=np.float64)
+        topple_pos = topple_arr[topple_arr > 0.0]
+        branch_ratio = 0.0
+        if topple_pos.size >= 2:
+            prev = topple_pos[:-1]
+            nxt = topple_pos[1:]
+            valid = prev > 0.0
+            if np.any(valid):
+                branch_ratio = float(np.mean(nxt[valid] / prev[valid]))
         return {
             "alive": int(alive_mask.sum()),
             "safe": int(self.safe.sum()),
@@ -336,6 +382,11 @@ class Simulation:
             "P_local_mean": float(P_local_mean),
             "P_local_var": float(P_local_var),
             "chi_local": float(Ne0 * P_local_var),
+            "soc_topple_steps": int(np.count_nonzero(topple_arr > 0.0)),
+            "soc_topple_events_total": int(np.sum(topple_arr)),
+            "soc_topple_size_mean": float(np.mean(topple_pos)) if topple_pos.size else 0.0,
+            "soc_topple_size_var": float(np.var(topple_pos)) if topple_pos.size else 0.0,
+            "soc_branch_ratio": float(branch_ratio),
         }
 
     def save(self, run_dir: Path) -> None:

@@ -11,6 +11,7 @@ from typing import Any, Literal
 BoundaryMode = Literal["periodic", "reflecting"]
 PursuerPolicy = Literal["p0_nearest", "p1_intercept"]
 CapMode = Literal["fixed", "poisson"]
+AlignControlMode = Literal["legacy", "share"]
 
 
 @dataclass(frozen=True)
@@ -37,8 +38,23 @@ class EvaderConfig:
     w_goal: float = 1.2
     w_avoid: float = 1.5
     w_explore: float = 0.4
+    align_control_mode: AlignControlMode = "legacy"
 
     angle_noise: float = 0.12  # radians
+
+    # Optional SOC controller (disabled by default for backward compatibility).
+    soc_enabled: bool = False
+    soc_stress_decay: float = 0.05
+    soc_surprise_gain: float = 0.4
+    soc_threat_gain: float = 0.3
+    soc_threshold: float = 0.25
+    soc_release: float = 0.2
+    soc_neighbor_coupling: float = 0.15
+    soc_align_drop: float = 0.25
+    soc_align_relax: float = 0.02
+    soc_align_min: float = 0.05
+    soc_align_max: float = 0.95
+    soc_topple_noise: float = 0.2  # radians
 
 
 @dataclass(frozen=True)
@@ -124,4 +140,3 @@ def nominal_zone_capacity(evader_count: int, active_max: int, cap_ratio: float) 
     if active_max <= 0:
         return 0
     return max(1, int(math.floor((cap_ratio * evader_count) / active_max)))
-
