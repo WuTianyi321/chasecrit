@@ -1,0 +1,33 @@
+[evaders]
+align_control_mode = "share"
+angle_noise = 0.0
+w_align = 0.15
+w_goal = 1.2
+w_avoid = 1.5
+w_explore = 0.4
+
+soc_enabled = true
+soc_mode = "v3"
+soc_relax_to_w_align = false
+soc_stress_to_align_gain = 6.0
+
+soc_stress_decay = 0.05
+soc_surprise_gain = 0.40
+soc_threat_gain = 0.50
+soc_entropy_gain = 1.0
+soc_entropy_ema_alpha = 0.15
+soc_heading_bins = 36
+soc_heading_smoothing = 0.5
+soc_heading_decay = 0.01
+
+soc_threshold = 0.36
+soc_release = 0.22
+soc_neighbor_coupling = 0.12
+soc_align_drop = 0.20
+soc_align_relax = 0.0
+soc_align_min = 0.05
+soc_align_max = 0.95
+soc_topple_noise = 0.15
+
+[pursuers]
+policy = "p1_intercept"

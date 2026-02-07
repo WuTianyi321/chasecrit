@@ -317,6 +317,24 @@ Raw sweeps (not version-controlled):
     - benchmark comparison (circular variance of angle increments) remains less sensitive than `Var(H_pred)` in these runs.
   - reader-facing report:
     - `doc/实验结果-SOCv3论文思路对齐尝试-20260207.md`.
+  - larger-sample extension (same day, user requested more data):
+    - broad scan:
+      - root: `runs/soc_v3_scan_large_20260207/`
+      - `14` variants, `speed_ratio={1.0,1.1,1.2,1.3,1.4}`, `seeds=80` each, `steps=600`, total `5600` runs.
+      - summary artifacts:
+        - `doc/results_20260207_soc_v3_large_scan/soc_v3_large_summary_by_variant_sr.csv`
+        - `doc/results_20260207_soc_v3_large_scan/soc_v3_large_variant_ranking.csv`
+    - focused `200`-seed validation:
+      - variants: `baseline`, `soc_v3_eg14_th036`, `soc_v3_eg14_th028`
+      - merged seeds `0..199`
+      - paired-CI artifact:
+        - `doc/results_20260207_soc_v3_large_scan/focus_200seeds/paired_ci_200seeds.csv`
+    - stable finding after expansion:
+      - top SOC-v3 candidates keep higher predictive-entropy variance than baseline;
+      - but at medium/high pressure (`sr>=1.3`) they are still not better on `safe` (often significantly worse);
+      - at lower pressure (`sr<=1.2`) differences are smaller and mostly inconclusive.
+    - reader-facing report:
+      - `doc/实验结果-SOCv3大规模扫描补充-20260207.md`.
 
 ## Pursuer policy status
 
