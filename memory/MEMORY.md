@@ -405,3 +405,25 @@ Raw sweeps (not version-controlled):
 - Remote sync confirmed for SOC-v3 large-scan milestone:
   - `origin/main` includes commit `2234aa3`.
   - This commit contains the 5600-run broad scan, 200-seed focused extension, figures, report, and memory updates.
+
+## Predictive-dependency pursuit scan (2026-02-07)
+
+- New backward-compatible knobs for `p1_intercept`:
+  - `pursuers.intercept_gain` in `[0,1]` (blend between direct chase and predictive aim).
+  - `pursuers.intercept_tmax` (`<=0` unlimited; `>0` clips prediction horizon).
+- Compatibility default stays old behavior: `intercept_gain=1.0`, `intercept_tmax=0.0`.
+- Test coverage includes:
+  - gain=0 -> nearest behavior directionally;
+  - finite tmax reduces lead component;
+  - full suite passes (`18 passed`).
+
+### Experimental conclusion (expanded scan)
+
+- Batch size: `25200 runs` across 4 pursuer variants (`p0`, `p1_full`, `p1_gain05`, `p1_tmax2`).
+- In the current scenario family (share/noise0, multi-safe-zone), predictive pursuers improve best achievable `safe` over nearest-chase baseline across `sr={1.0..1.4}`.
+- Relationship statement refined:
+  - global `chi` remains negatively correlated with `safe`;
+  - `chi_local` becomes positively informative under predictive pursuers and shows stronger highQ-lowQ gains.
+- Practical guidance for next scans:
+  - evaluate near-critical benefit with **task-internal local proxies** (`chi_local`, predictability proxies), not global `chi` alone;
+  - keep pressure-layer stratification (`speed_ratio`) explicit, since optimal `w_align` shifts with pressure.
