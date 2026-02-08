@@ -427,3 +427,42 @@ Raw sweeps (not version-controlled):
 - Practical guidance for next scans:
   - evaluate near-critical benefit with **task-internal local proxies** (`chi_local`, predictability proxies), not global `chi` alone;
   - keep pressure-layer stratification (`speed_ratio`) explicit, since optimal `w_align` shifts with pressure.
+
+## Var(H)-driven SOC v4 (2026-02-08)
+
+### Implementation
+
+- Added new SOC mode: `v4_varh`.
+- Added evader config knobs:
+  - `soc_varh_target`
+  - `soc_varh_gain`
+  - `soc_varh_deadband`
+- Semantics:
+  - In `v4_varh`, the controller computes per-step `Var(H)` from predictive entropy and adjusts `align_share` via feedback on `(target - Var(H))`.
+  - Backward compatibility preserved for existing modes (`v1`, `v3`) and SOC-disabled runs.
+
+### Validation
+
+- Unit tests updated and passing; full suite remains green (`19 passed`).
+- Added explicit behavior test that different `Var(H)` targets drive opposite `align_share` direction in `v4_varh`.
+
+### Experiments and outcome
+
+- Predictive-ability scan performed with `intercept_gain ∈ {0,0.25,0.5,0.75,1.0}` at fixed `speed_ratio=1.3`, `w_align=0.15`, `120 seeds` each.
+- Two rounds:
+  1. initial `v4_varh` parameters (high gain + stress/topple active): strong performance degradation.
+  2. tuned `v4_varh` (pure Var(H) feedback, reduced gain): performance near baseline, no robust positive gain.
+- Tuned pooled relations (SOC group):
+  - `corr(Var(H), gain) ≈ +0.193`
+  - `corr(safe, Var(H)) ≈ -0.063`
+- Current status:
+  - Var(H) feedback can shift/maintain predictability-fluctuation level,
+  - but in current task/parameter family it does **not** yet yield stable survival improvement.
+
+### Canonical outputs
+
+- Tuned report: `doc/results_20260208_soc_varh_tuned_predability/report.md`
+- Tables:
+  - `summary_by_variant_gain.csv`
+  - `paired_delta_safe_summary.csv`
+  - `pooled_correlations_soc.csv`
