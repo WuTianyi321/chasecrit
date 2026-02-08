@@ -202,7 +202,7 @@ def evader_step(
     soc_align_min: float = 0.05,
     soc_align_max: float = 0.95,
     soc_topple_noise: float = 0.2,
-    soc_mode: Literal["v1", "v3"] = "v1",
+    soc_mode: Literal["v1", "v3", "v4_varh"] = "v1",
     soc_relax_to_w_align: bool = True,
     soc_stress_to_align_gain: float = 6.0,
     soc_entropy_gain: float = 0.0,
@@ -210,6 +210,9 @@ def evader_step(
     soc_heading_bins: int = 36,
     soc_heading_smoothing: float = 0.5,
     soc_heading_decay: float = 0.01,
+    soc_varh_target: float = 0.03,
+    soc_varh_gain: float = 2.5,
+    soc_varh_deadband: float = 0.002,
     dense_ws: EvaderDenseWorkspace | None = None,
     prefer_numba: bool | None = None,
 ) -> np.ndarray:
@@ -477,7 +480,8 @@ def evader_step(
         entropy_fluct = np.zeros((M,), dtype=np.float64)
         pred_entropy = np.zeros((M,), dtype=np.float64)
         mode = str(soc_mode).lower()
-        if mode == "v3":
+        pred_entropy_var = 0.0
+        if mode in ("v3", "v4_varh"):
             bins = max(8, int(soc_heading_bins))
             if soc_state.pred_trans_counts.shape[1] != bins:
                 raise ValueError("soc_state heading bins mismatch; recreate state with matching soc_heading_bins")
@@ -510,6 +514,7 @@ def evader_step(
                         row_update *= (1.0 - decay)
                     row_update[int(curr_bin[local_idx])] += 1.0
                 soc_state.pred_prev_bin[global_idx] = int(curr_bin[local_idx])
+            pred_entropy_var = float(np.var(pred_entropy)) if pred_entropy.size else 0.0
 
         stress += soc_surprise_gain * surprise + soc_threat_gain * threat + soc_entropy_gain * entropy_fluct
 
@@ -532,6 +537,17 @@ def evader_step(
             align_share[:] = np.clip(base_share, soc_align_min, soc_align_max)
             if np.any(toppled) and soc_align_drop > 0.0:
                 align_share[toppled] -= soc_align_drop
+        elif mode == "v4_varh":
+            target = max(0.0, float(soc_varh_target))
+            gain = max(0.0, float(soc_varh_gain))
+            deadband = max(0.0, float(soc_varh_deadband))
+            var_err = target - pred_entropy_var
+            if abs(var_err) > deadband and gain > 0.0:
+                align_share += (-gain * var_err)
+            if np.any(toppled) and soc_align_drop > 0.0:
+                align_share[toppled] -= soc_align_drop
+            if soc_relax_to_w_align:
+                align_share += soc_align_relax * (float(np.clip(w_align, 0.0, 1.0)) - align_share)
         else:
             if np.any(toppled):
                 align_share[toppled] -= soc_align_drop
@@ -545,7 +561,7 @@ def evader_step(
         soc_state.last_toppled[alive_idx] = toppled
         soc_state.last_topple_count = int(np.count_nonzero(toppled))
         soc_state.last_pred_entropy_mean = float(np.mean(pred_entropy)) if pred_entropy.size else 0.0
-        soc_state.last_pred_entropy_var = float(np.var(pred_entropy)) if pred_entropy.size else 0.0
+        soc_state.last_pred_entropy_var = pred_entropy_var
         soc_state.last_entropy_fluct_mean = float(np.mean(entropy_fluct)) if entropy_fluct.size else 0.0
     else:
         if soc_state is not None:

@@ -226,6 +226,9 @@ class Simulation:
             soc_heading_bins=cfg.evaders.soc_heading_bins,
             soc_heading_smoothing=cfg.evaders.soc_heading_smoothing,
             soc_heading_decay=cfg.evaders.soc_heading_decay,
+            soc_varh_target=cfg.evaders.soc_varh_target,
+            soc_varh_gain=cfg.evaders.soc_varh_gain,
+            soc_varh_deadband=cfg.evaders.soc_varh_deadband,
             dense_ws=self._evader_dense_ws,
             prefer_numba=self.prefer_numba,
         )

@@ -12,7 +12,7 @@ BoundaryMode = Literal["periodic", "reflecting"]
 PursuerPolicy = Literal["p0_nearest", "p1_intercept"]
 CapMode = Literal["fixed", "poisson"]
 AlignControlMode = Literal["legacy", "share"]
-SocMode = Literal["v1", "v3"]
+SocMode = Literal["v1", "v3", "v4_varh"]
 
 
 @dataclass(frozen=True)
@@ -64,6 +64,9 @@ class EvaderConfig:
     soc_heading_bins: int = 36
     soc_heading_smoothing: float = 0.5
     soc_heading_decay: float = 0.01
+    soc_varh_target: float = 0.03
+    soc_varh_gain: float = 2.5
+    soc_varh_deadband: float = 0.002
 
 
 @dataclass(frozen=True)

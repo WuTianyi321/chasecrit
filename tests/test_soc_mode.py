@@ -193,3 +193,36 @@ def test_soc_v3_entropy_drive_updates_entropy_statistics() -> None:
     assert soc_state.last_pred_entropy_mean >= 0.0
     assert soc_state.last_pred_entropy_var >= 0.0
     assert soc_state.last_entropy_fluct_mean >= 0.0
+
+
+def test_soc_v4_varh_target_controls_align_share_direction() -> None:
+    kwargs = _step_inputs()
+
+    def run_target(target: float) -> tuple[float, float]:
+        state = EvaderSocState.create(n_evaders=4, init_align_share=0.6, heading_bins=24)
+        for seed in (21, 22, 23):
+            _ = evader_step(
+                rng=np.random.default_rng(seed),
+                soc_enabled=True,
+                soc_state=state,
+                soc_mode="v4_varh",
+                soc_heading_bins=24,
+                soc_heading_decay=0.02,
+                soc_entropy_ema_alpha=0.2,
+                soc_varh_target=target,
+                soc_varh_gain=4.0,
+                soc_varh_deadband=0.0,
+                soc_relax_to_w_align=False,
+                soc_surprise_gain=0.0,
+                soc_threat_gain=0.0,
+                soc_entropy_gain=0.0,
+                **kwargs,
+            )
+        return float(np.mean(state.align_share)), float(state.last_pred_entropy_var)
+
+    mean_align_high_target, varh_high_target = run_target(0.12)
+    mean_align_low_target, varh_low_target = run_target(0.0)
+
+    assert varh_high_target >= 0.0
+    assert varh_low_target >= 0.0
+    assert mean_align_high_target < mean_align_low_target
