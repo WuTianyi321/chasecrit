@@ -466,3 +466,7 @@ Raw sweeps (not version-controlled):
   - `summary_by_variant_gain.csv`
   - `paired_delta_safe_summary.csv`
   - `pooled_correlations_soc.csv`
+
+- Added canonical method document for reproducible algorithm definition:
+  - `doc/算法细节-SOC-v4-VarH与前瞻追捕.md`
+  - This is the authoritative text for SOC-v4-VarH + p1_intercept equations, control flow, and config-parameter mapping.
